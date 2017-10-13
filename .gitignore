@@ -1,5 +1,18 @@
-# Prerequisites
-*.d
+# Add any directories, files, or patterns you don't want to be tracked by version control
+
+# Build output directories
+build.msvc/
+build.macos/
+build.ios/
+build.android/
+build.linux/
+
+# VS config dirs
+.vs/
+.vscode/
+
+# binary file
+*.bin
 
 # Compiled Object files
 *.slo
@@ -18,7 +31,6 @@
 
 # Fortran module files
 *.mod
-*.smod
 
 # Compiled Static libraries
 *.lai
@@ -30,3 +42,12 @@
 *.exe
 *.out
 *.app
+
+# Visual Studio Project Temp Files
+*.user
+*.opensdf
+*.sdf
+*.suo
+*.pdb
+*.vc.db
+*.vc.opendb
