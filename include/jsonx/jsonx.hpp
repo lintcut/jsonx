@@ -8,6 +8,8 @@
 #include <memory>
 #include <algorithm>
 #include <iostream>
+#include <sstream>
+#include <cctype>
 #include <locale>
 #include <codecvt>
 #include <cstdlib>
@@ -23,400 +25,57 @@
 
 namespace JSONX {
 
-// class Forward
-class Value;
-class Null;
-class Boolean;
-class Number;
-class String;
-class Object;
-class Array;
-
-namespace Impl {
-    class ValueImpl;
-}
-    
-class Value
-{
-public:
-    typedef enum ValueType {
-        JsonNull = 0,
-        JsonBoolean,
-        JsonNumber,
-        JsonString,
-        JsonArray,
-        JsonObject
-    } ValueType;
-
-    Value()
-    {
-    }
-
-    Value(const Value& rhs)
-        : valImpl(rhs.valImpl)
-    {
-    }
-
-    Value(Value&& rhs)
-        : valImpl(std::move(rhs.valImpl))
-    {
-    }
-
-    explicit Value(ValueType t)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(
-            JsonNull == t ? dynamic_cast<Impl::ValueImpl*>(new Impl::NullImpl())
-            : (JsonBoolean == t ? dynamic_cast<Impl::ValueImpl*>(new Impl::BooleanImpl(false))
-            : (JsonNumber == t ? dynamic_cast<Impl::ValueImpl*>(new Impl::NumberImpl(0ULL))
-            : (JsonArray == t ? dynamic_cast<Impl::ValueImpl*>(new Impl::ArrayImpl())
-            : (JsonObject == t ? dynamic_cast<Impl::ValueImpl*>(new Impl::ObjectImpl(true)) : nullptr))))
-            ))
-    {
-    }
-
-    explicit Value(bool v)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::BooleanImpl(v)))
-    {
-    }
-
-    explicit Value(int32_t v)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::NumberImpl(v)))
-    {
-    }
-
-    explicit Value(int64_t v)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::NumberImpl(v)))
-    {
-    }
-
-    explicit Value(uint32_t v)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::NumberImpl(v)))
-    {
-    }
-
-    explicit Value(uint64_t v)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::NumberImpl(v)))
-    {
-    }
-
-    explicit Value(float v)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::NumberImpl(v)))
-    {
-    }
-
-    explicit Value(double v)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::NumberImpl(v)))
-    {
-    }
-
-    explicit Value(const std::string& v, bool escaped = false)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::StringImpl(v, escaped)))
-    {
-    }
-
-    explicit Value(const char* v, bool escaped = false)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::StringImpl(std::string(v), escaped)))
-    {
-    }
-
-    explicit Value(const std::wstring& v, bool escaped = false)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::StringImpl(v, escaped)))
-    {
-    }
-
-    explicit Value(const wchar_t* v, bool escaped = false)
-        : valImpl(std::shared_ptr<Impl::ValueImpl>(new Impl::StringImpl(std::wstring(v), escaped)))
-    {
-    }
-
-    virtual ~Value()
-    {
-    }
-
-    // Copy
-    Value& operator = (const Value& rhs)
-    {
-        if(this != &rhs)
-        {
-            valImpl = rhs.valImpl;
-        }
-        return *this;
-    }
-    // Move
-    Value& operator = (Value&& rhs)
-    {
-        if(this != &rhs)
-        {
-            valImpl = std::move(rhs.valImpl);
-        }
-        return *this;
-    }
-
-    inline bool empty() const { return (valImpl == nullptr); }
-    inline bool isNull() const { return (!empty() && valImpl->isNull()); }
-    inline bool isBoolean() const { return (!empty() && valImpl->isBoolean()); }
-    inline bool isNumber() const { return (!empty() && valImpl->isNumber()); }
-    inline bool isString() const { return (!empty() && valImpl->isString()); }
-    inline bool isArray() const { return (!empty() && valImpl->isArray()); }
-    inline bool isObject() const { return (!empty() && valImpl->isObject()); }
-
-    inline Null asNull() { return Null(*this); }
-    inline const Null& asNull() const { return Null(*this); }
-    inline Boolean asBoolean() { return Boolean(*this); }
-    inline const Boolean& asBoolean() const { return Boolean(*this); }
-    inline Number asNumber() { return Number(*this); }
-    inline const Number& asNumber() const { return Number(*this); }
-    inline String asString() { return String(*this); }
-    inline const String& asString() const { return String(*this); }
-    inline Array asArray() { return Array(*this); }
-    inline const Array& asArray() const { return Array(*this); }
-    inline Object asObject() { return Object(*this); }
-    inline const Object& asObject() const { return Object(*this); }
-
-    bool write(std::ostream& stm) const
-    {
-        if(empty())
-            return false;
-        return valImpl->write(stm);
-    }
-
-    bool read(std::istream& stm)
-    {
-        valImpl = Impl::ValueImpl::read(stm);
-        return (valImpl != nullptr);
-    }
-
-protected:
-    explicit Value(std::shared_ptr<Impl::ValueImpl> sp)
-        : valImpl(sp)
-    {
-    }
-    std::shared_ptr<Impl::ValueImpl> getImpl() { return valImpl; }
-    std::shared_ptr<Impl::ValueImpl> getImpl() const { return valImpl; }
-
-private:
-    std::shared_ptr<Impl::ValueImpl> valImpl;
-    friend class Array;
-    friend class Object;
-};
-
-class Null : public Value
-{
-public:
-    virtual ~Null() {}
-
-protected:
-    Null() : Value(JsonNull)
-    {
-    }
-
-    Null(const Value& val)
-        : Value(val.isNull() ? val : Value(JsonNull))
-    {
-    }
-
-private:
-    friend class Value;
-};
-
-class Boolean : public Value
-{
-public:
-    virtual ~Boolean() {}
-
-    operator bool() const {return dynamic_cast<Impl::BooleanImpl*>(getImpl().get())->get();}
-    void operator = (bool v) {dynamic_cast<Impl::BooleanImpl*>(getImpl().get())->set(v);}
-
-protected:
-    Boolean() : Value(JsonBoolean)
-    {
-    }
-    Boolean(const Value& val)
-        : Value(val.isBoolean() ? val : Value(JsonBoolean))
-    {
-    }
-
-private:
-    friend class Value;
-};
-
-class Number : public Value
-{
-public:
-    virtual ~Number() {}
-
-    inline bool isSigned() const { return getRef().isSigned(); }
-    inline bool isFloat() const { return getRef().isFloat(); }
-
-    inline int32_t toInt32() const { return getRef().toInt32(); }
-    inline uint32_t toUint32() const { return getRef().toUint32(); }
-    inline int64_t toInt64() const { return getRef().toInt64(); }
-    inline uint64_t toUint64() const { return getRef().toUint64(); }
-    inline double toDecimal() const { return getRef().toDecimal(); }
-
-    inline operator int32_t() const { toInt32(); }
-    inline operator uint32_t() const { toUint32(); }
-    inline operator int64_t() const { toInt64(); }
-    inline operator uint64_t() const { toUint64(); }
-    inline operator float() const { static_cast<float>(toDecimal()); }
-    inline operator double() const { toDecimal(); }
-
-protected:
-    Number() : Value(JsonNumber)
-    {
-    }
-    Number(const Value& val)
-        : Value(val.isNumber() ? val : Value(JsonNumber))
-    {
-    }
-
-    Impl::NumberImpl& getRef()
-    {
-        return *dynamic_cast<Impl::NumberImpl*>(getImpl().get());
-    }
-
-    const Impl::NumberImpl& getRef() const
-    {
-        return *dynamic_cast<Impl::NumberImpl*>(getImpl().get());
-    }
-
-private:
-    friend class Value;
-};
-
-class String : public Value
-{
-public:
-    virtual ~String() {}
-
-    operator const char* () const { dynamic_cast<Impl::StringImpl*>(getImpl().get())->get().c_str(); }
-    operator const std::string& () const { dynamic_cast<Impl::StringImpl*>(getImpl().get())->get(); }
-    void operator = (const std::string& s) { dynamic_cast<Impl::StringImpl*>(getImpl().get())->set(s, false); }
-    void operator = (const std::wstring& s) { dynamic_cast<Impl::StringImpl*>(getImpl().get())->set(s, false); }
-
-protected:
-    String() : Value(JsonString)
-    {
-    }
-    String(const Value& val)
-        : Value(val.isString() ? val : Value(JsonString))
-    {
-    }
-
-private:
-    friend class Value;
-};
-
-class Array : public Value
-{
-public:
-    virtual ~Array() {}
-
-    void push_back(const Value& v)
-    {
-        dynamic_cast<Impl::ArrayImpl*>(getImpl().get())->push_back(v.getImpl());
-    }
-
-    Value operator [] (size_t index)
-    {
-        return empty() ? Value() : Value(getRef()[index]);
-    }
-
-    const Value& operator [] (size_t index) const
-    {
-        return empty() ? Value() : Value(getRef()[index]);
-    }
-
-protected:
-    Array() : Value(JsonArray)
-    {
-    }
-    Array(const Value& val)
-        : Value(val.isArray() ? val : Value(JsonArray))
-    {
-    }
-
-    Impl::ArrayImpl& getRef()
-    {
-        return *dynamic_cast<Impl::ArrayImpl*>(getImpl().get());
-    }
-
-    const Impl::ArrayImpl& getRef() const
-    {
-        return *dynamic_cast<const Impl::ArrayImpl*>(getImpl().get());
-    }
-
-private:
-    friend class Value;
-};
-
-class Object : public Value
-{
-public:
-    virtual ~Object() {}
-
-    void set(const std::string& key, const Value& v)
-    {
-        dynamic_cast<Impl::ObjectImpl*>(getImpl().get())->set(key, v.getImpl());
-    }
-
-    Value operator [] (const std::string& key)
-    {
-        return empty() ? Value() : Value(getRef()[key]);
-    }
-
-    const Value& operator [] (const std::string& key) const
-    {
-        return empty() ? Value() : Value(getRef()[key]);
-    }
-
-protected:
-    Object() : Value(JsonObject) {}
-    Object(const Value& val)
-        : Value(val.isObject() ? val : Value(JsonObject))
-    {
-    }
-
-    Impl::ObjectImpl& getRef()
-    {
-        return *dynamic_cast<Impl::ObjectImpl*>(getImpl().get());
-    }
-
-    const Impl::ObjectImpl& getRef() const
-    {
-        return *dynamic_cast<const Impl::ObjectImpl*>(getImpl().get());
-    }
-
-private:
-    friend class Value;
-};
-
-
-namespace Impl {
-
-class NullImpl;
-class BooleanImpl;
-class NumberImpl;
-class StringImpl;
-class ArrayImpl;
-class ObjectImpl;
-
 namespace Utils {
 
-    std::string toUtf8(const std::wstring& s)
+    __forceinline std::string toUtf8(const std::string& s)
+    {
+        return s;
+    }
+
+    __forceinline std::string toUtf8(const std::wstring& s)
     {
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> convert;
         return convert.to_bytes(s);    
     }
 
-    std::wstring toUtf16(const std::string& s)
+    __forceinline std::wstring toUtf16(const std::string& s)
     {
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> convert;
         return convert.from_bytes(s); 
     }
 
+    template<typename T> T toLower(T c) { return (c >= 'A' && c <= 'Z') ? (c + 0x20) : c; }
+    template<typename T> T toUpper(T c) { return (c >= 'a' && c <= 'z') ? (c - 0x20) : c; }
+
+    template<typename T>
+    int compare(T c1, T c2, bool caseInsensitive)
+    {
+        if (caseInsensitive)
+        {
+            c1 = toLower<T>(c1);
+            c2 = toLower<T>(c2);
+        }
+        return (c1 == c2) ? 0 : (c1 < c2 ? -1 : 1);
+    }
+
+    template<typename T>
+    int compare(const T* s1, const T* s2, bool caseInsensitive)
+    {
+        int result = 0;
+        while (0 == result && (*s1 || *s2))
+            result = compare<T>(*(s1++), *(s2++), caseInsensitive);
+        return result;
+    }
+
+    template<typename T>
+    bool equal(const T* s1, const T* s2, bool caseInsensitive)
+    {
+        return (0 == compare<T>(s1, s2, caseInsensitive));
+    }
+
     // JSON escape/unescape rules:
     //  https://tools.ietf.org/html/rfc7159#page-8
-    std::string escape(const std::string& s)
+    __forceinline std::string escape(const std::string& s)
     {
         std::string s2;
         const char* pos = s.c_str();
@@ -424,14 +83,14 @@ namespace Utils {
         {
             switch(*pos)
             {
+            case '\"':
+                s2.append("\\\"");
+                break;
             case '\\':
                 s2.append("\\\\");
                 break;
             case '/':
-            s2.append("\\/");
-                break;
-            case '\"':
-                s2.append("\\\"");
+                s2.append("\\/");
                 break;
             case '\b':
                 s2.append("\\b");
@@ -439,24 +98,25 @@ namespace Utils {
             case '\f':
                 s2.append("\\f");
                 break;
-            case '\t':
-                s2.append("\\t");
+            case '\n':
+                s2.append("\\n");
                 break;
             case '\r':
                 s2.append("\\r");
                 break;
-            case '\n':
-                s2.append("\\n");
+            case '\t':
+                s2.append("\\t");
                 break;
             default:
                 s2.append(pos, 1);
                 break;
             }
+            ++pos;
         }
         return std::move(s2);
     }
 
-    std::string unescape(const std::string& s)
+    __forceinline std::string unescape(const std::string& s)
     {
         std::string s2;
         const char* pos = s.c_str();
@@ -466,7 +126,12 @@ namespace Utils {
             {
                 // escaped character
                 ++pos;
-                if(*pos == '\\')
+                if (*pos == '\"')
+                {
+                    s2.append("\"");
+                    ++pos;
+                }
+                else if(*pos == '\\')
                 {
                     s2.append("\\");
                     ++pos;
@@ -474,11 +139,6 @@ namespace Utils {
                 else if (*pos == '/')
                 {
                     s2.append("/");
-                    ++pos;
-                }
-                else if (*pos == '\"')
-                {
-                    s2.append("\"");
                     ++pos;
                 }
                 else if (*pos == 'b')
@@ -491,9 +151,9 @@ namespace Utils {
                     s2.append("\f");
                     ++pos;
                 }
-                else if (*pos == 't')
+                else if (*pos == 'n')
                 {
-                    s2.append("\t");
+                    s2.append("\n");
                     ++pos;
                 }
                 else if (*pos == 'r')
@@ -501,16 +161,16 @@ namespace Utils {
                     s2.append("\r");
                     ++pos;
                 }
-                else if (*pos == 'n')
+                else if (*pos == 't')
                 {
-                    s2.append("\n");
+                    s2.append("\t");
                     ++pos;
                 }
                 else if (*pos == 'u')
                 {
                     ++pos;
                     // Next four digits must be hex
-                    if(isxdigit(pos[0]) && isxdigit(pos[1]) && isxdigit(pos[2]) && isxdigit(pos[3]))
+                    if(std::isxdigit((int)pos[0]) && std::isxdigit((int)pos[1]) && std::isxdigit((int)pos[2]) && std::isxdigit((int)pos[3]))
                     {
                         std::string sHex(pos, 4);
                         const wchar_t wc = (wchar_t)std::strtoul(sHex.c_str(), nullptr, 16);
@@ -539,534 +199,1058 @@ namespace Utils {
     }
 }
 
-class ValueImpl
+
+typedef enum ValueType {
+    JsonUnknown = 0,
+    JsonNull,
+    JsonBoolean,
+    JsonNumber,
+    JsonString,
+    JsonArray,
+    JsonObject
+} ValueType;
+
+typedef enum JsonError {
+    JESuccess = 0,
+    JEBadAlloc,
+    JEMismatchValueType,
+    JEUnexpectedChar,
+    JEUnexpectedEnd,
+    JEMissingColon,
+    JEMissingObjectClosure,
+    JEMissingArrayClosure,
+} JsonError;
+
+namespace IMPLEMENT {
+
+class SerializeConfig
 {
 public:
-    virtual ~ValueImpl() {}
+    SerializeConfig()
+        : wellFormatted(false)
+        , indentSize(0)
+        , lineEnding("\n")
+    {
+    }
+    SerializeConfig(bool formatted, const char* eol)
+        : wellFormatted(false)
+        , indentSize(0)
+        , lineEnding(eol)
+    {
+    }
+    ~SerializeConfig()
+    {
+    }
 
-    virtual bool isNull() const { return true; }
+    inline bool isWellFormatted() const { return wellFormatted; }
+    inline const std::vector<char>& getIndent() const { return indent; }
+    inline size_t getIndentSize() const { return indentSize; }
+    inline void indentInc()
+    {
+        if (wellFormatted)
+        {
+            indentSize += 4;
+            if (indentSize > indent.size())
+            {
+                // Always round to 64
+                indent.resize(((indent.size() + 63) / 64) * 64, ' ');
+            }
+        }
+    }
+    inline void indentDec()
+    {
+        if (wellFormatted)
+        {
+            indentSize = (indentSize >= 4) ? (indentSize - 4) : 0;
+        }
+    }
+    inline const std::string& getLineEnding() const { return lineEnding; }
+
+private:
+    bool wellFormatted;
+    std::vector<char> indent;
+    size_t indentSize;
+    const std::string lineEnding;
+};
+
+class ValueBase
+{
+public:
+    virtual ~ValueBase() {}
+
+    virtual bool isNull() const { return false; }
     virtual bool isBoolean() const { return false; }
     virtual bool isNumber() const { return false; }
     virtual bool isString() const { return false; }
-    virtual bool isArray() const { return false; }
     virtual bool isObject() const { return false; }
+    virtual bool isArray() const { return false; }
 
-    virtual bool write(std::ostream& stm) const = 0;
-
-    static std::shared_ptr<ValueImpl> read(std::istream& stm)
-    {
-        char ch = 0;
-        while(EOF != (ch = stm.peek()))
-        {
-            // Ignore whitespace and ','
-            if(iswspace(ch) || ',' == ch)
-            {
-                stm.read(&ch, 1);
-                continue;
-            }
-
-            switch(ch)
-            {
-            case 'n':   // Null
-                return std::move(NullImpl::read(stm));
-            case 't':   // Boolean
-            case 'f':
-                return std::move(BooleanImpl::read(stm));
-            case '\"':  // String
-                return std::move(StringImpl::read(stm));
-            case '[':   // Array
-                return std::move(ArrayImpl::read(stm));
-            case '{':   // Object
-                return std::move(ObjectImpl::read(stm));
-            case '+':   // Number
-            case '-':
-            case '.':
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                return std::move(StringImpl::read(stm));
-            default:
-                break;
-            }
-            return std::shared_ptr<ValueImpl>();
-        }
-    }
+    virtual std::string serialize(SerializeConfig* config) const = 0;
 
 protected:
-    ValueImpl() {}
-
-private:
-    friend class Value;
+    ValueBase() {}
 };
 
-class NullImpl : public ValueImpl
+class ValueNull : public ValueBase
 {
 public:
-    virtual ~NullImpl() {}
+    virtual ~ValueNull() {}
+    virtual bool isNull() const { return true; }
+    virtual std::string serialize(SerializeConfig* config) const { return "null"; }
 
-protected:
-    NullImpl() {}
-
-private:
-    virtual bool write(std::ostream& stm) const override
-    {
-        stm << "null";
-        return true;
-    }
-    
-    static std::shared_ptr<ValueImpl> read(std::istream& stm)
-    {
-        char buf[5] = {0};
-        if (stm.read(buf, 4) && 0 == strcmp(buf, "null"))
-            return std::shared_ptr<ValueImpl>(new NullImpl());
-        return std::shared_ptr<ValueImpl>();
-    }
+    static ValueNull* create() { return new ValueNull(); }
 
 private:
-    friend class Value;
-    friend class ValueImpl;
+    ValueNull() {}
 };
 
-class BooleanImpl : public ValueImpl
+class ValueBoolean : public ValueBase
 {
 public:
-    virtual ~BooleanImpl() {}
+    virtual ~ValueBoolean() {}
+    virtual bool isBoolean() const { return true; }
+    virtual std::string serialize(SerializeConfig* config) const { return val ? "true" : "false"; }
 
-protected:
-    BooleanImpl() : val(false) {}
-    explicit BooleanImpl(bool v) : val(v) {}
+    static ValueBoolean* create(bool v) { return new ValueBoolean(v); }
 
-    inline void set(bool v) { val = v; }
+    operator bool() const { return val; }
     inline bool get() const { return val; }
 
 private:
-    virtual bool write(std::ostream& stm) const override
+    explicit ValueBoolean(bool v)
+        : ValueBase()
+        , val(v)
     {
-        stm << (val ? "true" : "false");
-        return true;
-    }
-    
-    static std::shared_ptr<ValueImpl> read(std::istream& stm)
-    {
-        char buf[6] = {0};
-        const char ch = stm.peek();
-        if ('t' == ch)
-        {
-            if (stm.read(buf, 4) && 0 == strcmp(buf, "true"))
-                return std::shared_ptr<ValueImpl>(new BooleanImpl(true));
-        }
-        else if ('f' == ch)
-        {
-            if (stm.read(buf, 5) && 0 == strcmp(buf, "false"))
-                return std::shared_ptr<ValueImpl>(new BooleanImpl(false));
-        }
-        else
-        {
-            NOTHING;
-        }
-        return std::shared_ptr<ValueImpl>();
     }
 
-private:
     bool val;
-    friend class Value;
-    friend class Boolean;
-    friend class ValueImpl;
 };
 
-class NumberImpl : public ValueImpl
+class ValueNumber : public ValueBase
 {
 public:
-    virtual ~NumberImpl()
-    {
-    }
+    virtual ~ValueNumber() {}
+    virtual bool isNumber() const { return true; }
+    virtual std::string serialize(SerializeConfig* config) const { return valDecimal ? std::to_string(d) : std::to_string(n); }
 
-protected:
-    NumberImpl()
-        : signedNumber(false)
-        , floatNumber(false)
-        , ull(0)
-    {
-    }
+    static ValueNumber* create(int32_t v) { return new ValueNumber(v); }
+    static ValueNumber* create(int64_t v) { return new ValueNumber(v); }
+    static ValueNumber* create(uint32_t v) { return new ValueNumber(v); }
+    static ValueNumber* create(uint64_t v) { return new ValueNumber(v); }
+    static ValueNumber* create(float v) { return new ValueNumber(v); }
+    static ValueNumber* create(double v) { return new ValueNumber(v); }
 
-    explicit NumberImpl(int32_t v)
-        : signedNumber(v < 0 ? true : false)
-        , floatNumber(false)
-        , l(v)
-    {
-    }
+    inline bool isSigned() const { return valSigned; }
+    inline bool isDecimal() const { return valDecimal; }
 
-    explicit NumberImpl(uint32_t v)
-        : signedNumber(false)
-        , floatNumber(false)
-        , ul(v)
-    {
-    }
-
-    explicit NumberImpl(int64_t v)
-        : signedNumber(v < 0 ? true : false)
-        , floatNumber(false)
-        , ll(v)
-    {
-    }
-
-    explicit NumberImpl(uint64_t v)
-        : signedNumber(false)
-        , floatNumber(false)
-        , ull(v)
-    {
-    }
-
-    explicit NumberImpl(float v)
-        : signedNumber(v < 0 ? true : false)
-        , floatNumber(true)
-        , f(static_cast<double>(v))
-    {
-    }
-    
-    explicit NumberImpl(double v)
-        : signedNumber(v < 0 ? true : false)
-        , floatNumber(true)
-        , f(v)
-    {
-    }
-
-    inline bool isSigned() const { return signedNumber; }
-    inline bool isFloat() const { return floatNumber; }
-
-    inline int32_t toInt32() const { return isFloat() ? static_cast<int32_t>(f) : l; }
-    inline uint32_t toUint32() const { return isFloat() ? static_cast<uint32_t>(f) : ul; }
-    inline int64_t toInt64() const { return isFloat() ? static_cast<int32_t>(f) : ll; }
-    inline uint64_t toUint64() const { return isFloat() ? static_cast<uint32_t>(f) : ull; }
-    inline double toDecimal() const { return isFloat() ? f : static_cast<double>(ll*1.0); }
-    
-    inline operator int32_t() const { toInt32(); }
-    inline operator uint32_t() const { toUint32(); }
-    inline operator int64_t() const { toInt64(); }
-    inline operator uint64_t() const { toUint64(); }
-    inline operator float() const { static_cast<float>(toDecimal()); }
-    inline operator double() const { toDecimal(); }
-    
-private:
-    virtual bool write(std::ostream& stm) const override
-    {
-        if (floatNumber)
-            stm << f;
-        else
-            stm << ll;
-        return true;
-    }
-    
-    static std::shared_ptr<ValueImpl> read(std::istream& stm)
-    {
-        bool signPresent = false;
-        bool dotPresent = false;
-        bool exponentPresent = false;
-        std::string s;
-        char ch = EOF;
-        while(!stm.eof() && EOF != (ch = stm.peek()))
-        {
-            if(ch == '+' || ch == '-')
-            {
-                if(signPresent) // Sign already present? something is wrong
-                    break;
-                signPresent = true;
-                stm.read(&ch, 1);
-                s.append(&ch, 1);
-                continue;
-            }
-            
-            if(ch == '.')
-            {
-                if(dotPresent) // Dot already present? something is wrong
-                    break;
-                dotPresent = true;
-                stm.read(&ch, 1);
-                s.append(&ch, 1);
-                continue;
-            }
-            
-            if(ch == 'e' || ch == 'E')
-            {
-                if(exponentPresent) // Exponent already present? something is wrong
-                    break;
-                exponentPresent = true;
-                stm.read(&ch, 1);
-                s.append(&ch, 1);
-                continue;
-            }
-
-            if(ch >= '0' && ch <= '9')
-            {
-                stm.read(&ch, 1);
-                s.append(&ch, 1);
-                continue;
-            }
-
-            // Not a valid character? stop
-            break;
-        }
-
-        if(dotPresent || exponentPresent)
-            return std::shared_ptr<NumberImpl>(new NumberImpl(std::strtof(s.c_str(), nullptr)));
-        else
-            return std::shared_ptr<NumberImpl>(new NumberImpl(std::strtoll(s.c_str(), nullptr, 10)));
-    }
+    inline int32_t toInt32() const { return valDecimal ? static_cast<int32_t>(d) : static_cast<int32_t>(n); }
+    inline int64_t toInt64() const { return valDecimal ? static_cast<int64_t>(d) : n; }
+    inline uint32_t toUint32() const { return valDecimal ? static_cast<uint32_t>(d) : static_cast<uint32_t>(u); }
+    inline uint64_t toUint64() const { return valDecimal ? static_cast<uint64_t>(d) : u; }
+    inline double toDecimal() const { return valDecimal ? d : (n*1.0); }
 
 private:
+    explicit ValueNumber(int32_t v)
+        : ValueBase()
+        , n(v)
+        , valSigned(v < 0)
+        , valDecimal(false)
+    {
+    }
+    explicit ValueNumber(int64_t v)
+        : ValueBase()
+        , n(v)
+        , valSigned(v < 0)
+        , valDecimal(false)
+    {
+    }
+    explicit ValueNumber(uint32_t v)
+        : ValueBase()
+        , u(v)
+        , valSigned(false)
+        , valDecimal(false)
+    {
+    }
+    explicit ValueNumber(uint64_t v)
+        : ValueBase()
+        , u(v)
+        , valSigned(false)
+        , valDecimal(false)
+    {
+    }
+    explicit ValueNumber(float v)
+        : ValueBase()
+        , d(v)
+        , valSigned(v < 0)
+        , valDecimal(true)
+    {
+    }
+    explicit ValueNumber(double v)
+        : ValueBase()
+        , d(v)
+        , valSigned(v < 0)
+        , valDecimal(true)
+    {
+    }
+
+    bool valSigned;
+    bool valDecimal;
     union {
-        uint32_t ul;
-        int32_t l;
-        uint64_t ull;
-        int64_t ll;
-        double f;
+        int64_t n;
+        uint64_t u;
+        double_t d;
     };
-    bool signedNumber;
-    bool floatNumber;
-    friend class Value;
-    friend class Number;
-    friend class ValueImpl;
 };
 
-class StringImpl : public ValueImpl
+class ValueString : public ValueBase
 {
 public:
-    virtual ~StringImpl() {}
+    virtual ~ValueString() {}
+    virtual bool isString() const { return true; }
+    virtual std::string serialize(SerializeConfig* config) const { return Utils::escape(val); }
 
-protected:
-    explicit StringImpl(const std::string& s, bool escaped)
+    static ValueString* create(const std::string& s, bool escaped) { return new ValueString(s, escaped); }
+    static ValueString* create(const std::wstring& s, bool escaped) { return new ValueString(s, escaped); }
+
+    inline bool empty() const { return val.empty(); }
+    inline void clear() { val.clear(); }
+    inline const std::string& getString() const { return val; }
+    inline std::wstring getWstring() const { return Utils::toUtf16(val); }
+
+    void set(const std::string& s, bool escaped)
+    {
+        val = escaped ? s : Utils::escape(s);
+    }
+    void set(const std::wstring& s, bool escaped)
+    {
+        val = escaped ? Utils::toUtf8(s) : Utils::escape(Utils::toUtf8(s));
+    }
+
+private:
+    explicit ValueString(const std::string& s, bool escaped)
         : val(escaped ? Utils::unescape(s) : s)
     {
     }
 
-    explicit StringImpl(const std::wstring& s, bool escaped)
+    explicit ValueString(const std::wstring& s, bool escaped)
         : val(escaped ? Utils::unescape(Utils::toUtf8(s)) : Utils::toUtf8(s))
     {
     }
 
-    inline const std::string& get() const { return val; }
-    inline void set(const std::string& s, bool escaped) { val = escaped ? Utils::unescape(s) : s; }
-    inline void set(const std::wstring& s, bool escaped) { val = escaped ? Utils::unescape(Utils::toUtf8(s)) : Utils::toUtf8(s); }
-
-    virtual bool write(std::ostream& stm) const override
-    {
-        stm << "\"" << Utils::escape(val) << "\"";
-    }
-    
-    // The input must be escaped
-    static std::shared_ptr<ValueImpl> read(std::istream& stm)
-    {
-    }
-
-private:
     std::string val;
-    friend class Value;
-    friend class String;
-    friend class ValueImpl;
 };
 
-class ArrayImpl : public ValueImpl
+class ValueObject : public ValueBase
 {
 public:
-    virtual ~ArrayImpl() {}
-
-protected:
-    ArrayImpl()
-        : ValueImpl()
+    virtual ~ValueObject() {}
+    virtual bool isObject() const { return true; }
+    virtual std::string serialize(SerializeConfig* config) const
     {
-    }
-    
-    typedef std::vector<std::shared_ptr<ValueImpl>>::iterator       iterator;
-    typedef std::vector<std::shared_ptr<ValueImpl>>::const_iterator const_iterator;
-    typedef std::shared_ptr<ValueImpl>                              value_type;
+        std::string s("{");
+        if (config && config->isWellFormatted())
+            config->indentInc();
+        std::for_each(begin(), end(), [&](const value_type& item) {
+            if (s.length() > 1)
+            {
+                s.append(",");
+                if (config && config->isWellFormatted())
+                    s.append(config->getLineEnding());
+            }
 
-    inline bool empty() const { return vals.empty(); }
-    inline void clear() { vals.clear(); }
-    
-    void push_back(std::shared_ptr<ValueImpl> pv)
-    {
-        if(pv != nullptr)
-            vals.push_back(pv);
-    }
+            // Add indent
+            if (config && config->isWellFormatted() && config->getIndentSize() != 0)
+                s.append(config->getIndent().data(), config->getIndent().data() + config->getIndentSize());
 
-    std::shared_ptr<ValueImpl> operator [] (size_t index)
-    {
-        return (index < vals.size()) ? vals[index] : std::shared_ptr<ValueImpl>();
-    }
-
-    std::shared_ptr<ValueImpl> operator [] (size_t index) const
-    {
-        return (index < vals.size()) ? vals[index] : std::shared_ptr<ValueImpl>();
-    }
-
-private:
-    virtual bool write(std::ostream& stm) const override
-    {
-        bool firstItem = true;
-        stm << "[";
-        for(const std::shared_ptr<ValueImpl>& sp : vals)
+            // Key
+            s.append("\"");
+            s.append(Utils::escape(item.first));
+            s.append("\":");
+            // Value
+            s.append(item.second->serialize(config));
+        });
+        if (config && config->isWellFormatted())
         {
-            if(firstItem)
-                firstItem = false;
-            else
-                stm << ",";
-            sp->write(stm);
+            config->indentDec();
+            s.append(config->getLineEnding());
+            if (config->getIndentSize() != 0)
+                s.append(config->getIndent().data(), config->getIndent().data() + config->getIndentSize());
         }
-        stm << "]";
-    }
-    
-    static std::shared_ptr<ValueImpl> read(std::istream& stm)
-    {
+        s.append("}");
+        return s;
     }
 
-private:
-    std::vector<std::shared_ptr<ValueImpl>> vals;
-    friend class Value;
-    friend class Array;
-    friend class ValueImpl;
-};
+    static ValueObject* create(bool ko = true) { return new ValueObject(ko); }
 
-class ObjectImpl : public ValueImpl
-{
-public:
-    virtual ~ObjectImpl() {}
+    typedef std::pair<std::string, std::shared_ptr<ValueBase>> value_type;
+    typedef std::vector<value_type>::iterator iterator;
+    typedef std::vector<value_type>::const_iterator const_iterator;
 
-protected:
-    ObjectImpl(bool ko)
-        : ValueImpl(), keepOrder(ko)
-    {
-    }
-
-    typedef std::vector<std::pair<std::string, std::shared_ptr<ValueImpl>>>::iterator       iterator;
-    typedef std::vector<std::pair<std::string, std::shared_ptr<ValueImpl>>>::const_iterator const_iterator;
-    typedef std::pair<std::string, std::shared_ptr<ValueImpl>>                              value_type;
-
-    inline bool keepOriginalOrder() const { return keepOrder; }
+    inline bool keepInitOrder() const { return keepOrder; }
     inline bool empty() const { return vals.empty(); }
     inline void clear() { vals.clear(); }
+    inline size_t size() const { return vals.size(); }
+    inline iterator begin() { return vals.begin(); }
+    inline const_iterator begin() const { return vals.begin(); }
+    inline iterator end() { return vals.end(); }
+    inline const_iterator end() const { return vals.end(); }
 
-    void set(const std::string& key, std::shared_ptr<ValueImpl> pv)
+    std::shared_ptr<ValueBase> get(const std::wstring& key) const
     {
-        if(key.empty() || pv == nullptr)
-            return;
-        
-        if(keepOrder)
+        return get(Utils::toUtf8(key));
+    }
+
+    std::shared_ptr<ValueBase> get(const std::string& key) const
+    {
+        const_iterator pos = find(key);
+        return (pos != vals.end()) ? (*pos).second : std::shared_ptr<ValueBase>(nullptr);
+    }
+
+    void set(const std::string& key, std::shared_ptr<ValueBase> sp)
+    {
+        iterator pos = find(key);
+        if (pos != vals.end())
         {
-            auto pos = std::find_if(vals.begin(), vals.end(), [&](const value_type& item)->bool{
-                return (0 == _stricmp(key.c_str(), item.first.c_str()));
-            });
-            if(pos == vals.end())
-            {
-                vals.push_back(std::pair<std::string, std::shared_ptr<ValueImpl>>(key, pv));
-            }
-            else
-            {
-                (*pos).second = pv;
-            }
+            (*pos).second = sp;
         }
         else
         {
-            std::pair<std::string, std::shared_ptr<ValueImpl>> keyPair(key, std::shared_ptr<ValueImpl>());
-            auto pos = std::lower_bound(vals.begin(), vals.end(), keyPair, [](const value_type& v1, const value_type& v2)->bool{
-                return (_stricmp(v1.first.c_str(), v2.first.c_str()) < 0);
-            });
-            if(pos == vals.end())
+            if (keepOrder)
             {
-                vals.push_back(std::pair<std::string, std::shared_ptr<ValueImpl>>(key, pv));
+                vals.push_back(value_type(key, sp));
             }
             else
             {
-                if(0 == _stricmp(key.c_str(), (*pos).first.c_str()))
+                pos = std::lower_bound(vals.begin(), vals.end(), key, [](const value_type& val, const std::string& key)->bool {
+                    return (0 > Utils::compare<char>(val.first.c_str(), key.c_str(), true));
+                });
+                vals.insert(pos, value_type(key, sp));
+            }
+        }
+    }
+
+    void set(const std::string& key, bool v) { set(key, std::shared_ptr<ValueBase>(ValueBoolean::create(v))); }
+    void set(const std::string& key, int32_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void set(const std::string& key, int64_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void set(const std::string& key, uint32_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void set(const std::string& key, uint64_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void set(const std::string& key, float v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void set(const std::string& key, double v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void set(const std::string& key, const std::string& v) { set(key, std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+    void set(const std::string& key, const std::wstring& v) { set(key, std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+
+private:
+    iterator find(const std::string& key)
+    {
+        iterator pos = std::find_if(vals.begin(), vals.end(), [&](const value_type& item)->bool {
+            return Utils::equal<char>(item.first.c_str(), key.c_str(), true);
+        });
+        return pos;
+    }
+
+    const_iterator find(const std::string& key) const
+    {
+        const_iterator pos = std::find_if(vals.begin(), vals.end(), [&](const value_type& item)->bool {
+            return Utils::equal<char>(item.first.c_str(), key.c_str(), true);
+        });
+        return pos;
+    }
+
+
+private:
+    explicit ValueObject(bool ko) : keepOrder(ko) {}
+
+    bool keepOrder;
+    std::vector<value_type> vals;
+};
+
+class ValueArray : public ValueBase
+{
+public:
+    virtual ~ValueArray() {}
+    virtual bool isArray() const { return true; }
+    virtual std::string serialize(SerializeConfig* config) const
+    {
+        std::string s("[");
+        if (config && config->isWellFormatted())
+            config->indentInc();
+        std::for_each(begin(), end(), [&](const value_type& item) {
+            if (s.length() > 1)
+            {
+                s.append(",");
+                if (config && config->isWellFormatted())
+                    s.append(config->getLineEnding());
+            }
+
+            // Add indent
+            if (config && config->isWellFormatted() && config->getIndentSize() != 0)
+                s.append(config->getIndent().data(), config->getIndent().data() + config->getIndentSize());
+
+            // Value
+            s.append(item->serialize(config));
+        });
+        if (config && config->isWellFormatted())
+        {
+            config->indentDec();
+            s.append(config->getLineEnding());
+            if (config->getIndentSize() != 0)
+                s.append(config->getIndent().data(), config->getIndent().data() + config->getIndentSize());
+        }
+        s.append("]");
+        return s;
+    }
+
+    static ValueArray* create() { return new ValueArray(); }
+
+    typedef std::shared_ptr<ValueBase> value_type;
+    typedef std::vector<value_type>::iterator iterator;
+    typedef std::vector<value_type>::const_iterator const_iterator;
+
+    inline bool empty() const { return vals.empty(); }
+    inline void clear() { vals.clear(); }
+    inline size_t size() const { return vals.size(); }
+    inline iterator begin() { return vals.begin(); }
+    inline const_iterator begin() const { return vals.begin(); }
+    inline iterator end() { return vals.end(); }
+    inline const_iterator end() const { return vals.end(); }
+
+    std::shared_ptr<ValueBase> get(uint32_t index) const
+    {
+        return (index < vals.size()) ? vals[index] : std::shared_ptr<ValueBase>();
+    }
+
+    void push_back(std::shared_ptr<ValueBase> sp) { vals.push_back(sp); }
+    void push_back(bool v) { vals.push_back(std::shared_ptr<ValueBase>(ValueBoolean::create(v))); }
+    void push_back(int32_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void push_back(int64_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void push_back(uint32_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void push_back(uint64_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void push_back(float v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void push_back(double v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    void push_back(const std::string& v) { vals.push_back(std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+    void push_back(const std::wstring& v) { vals.push_back(std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+
+private:
+    ValueArray() {}
+    std::vector<std::shared_ptr<ValueBase>> vals;
+};
+
+class Parser
+{
+public:
+    Parser(std::istream& s)
+        : stm(s), pos(0), error(JESuccess)
+    {
+    }
+    ~Parser() {}
+
+    inline size_t getPos() const { return pos; }
+    inline JsonError getError() const { return error; }
+    inline bool failed() const { return (0 != error); }
+
+    ValueType checkValueType()
+    {
+        char c = peekNextNotSpace();
+        switch (c)
+        {
+        case 'n':
+        case 'N':
+            return JsonNull;
+        case 't':
+        case 'T':
+        case 'f':
+        case 'F':
+            return JsonBoolean;
+        case '-':
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            return JsonNumber;
+        case '\"':
+            return JsonString;
+        case '{':
+            return JsonObject;
+        case '[':
+            return JsonArray;
+        default:
+            break;
+        }
+        return JsonUnknown;
+    }
+
+#ifndef _DEBUG
+protected:
+#endif
+    char peekNext() const
+    {
+        return stm.eof() ? -1 : stm.peek();
+    }
+
+    char readNext()
+    {
+        char ch = -1;
+        if(!stm.eof())
+        {
+            stm.read(&ch, 1);
+            ++pos;
+        }
+        return ch;
+    }
+
+    char peekNextNotSpace()
+    {
+        char ch = peekNext();
+        while (!stm.eof() && std::isspace(ch))
+        {
+            readNext();
+            ch = peekNext();
+        }
+        return ch;
+    }
+
+    IMPLEMENT::ValueBase* readValue()
+    {
+        const ValueType type = checkValueType();
+
+        switch (type)
+        {
+        case JsonNull:
+            return readValueNull();
+        case JsonBoolean:
+            return readValueBoolean();
+        case JsonNumber:
+            return readValueNumber();
+        case JsonString:
+            return readValueString();
+        case JsonObject:
+            return readValueObject();
+        case JsonArray:
+            return readValueArray();
+        default:
+            break;
+        }
+
+        error = JEUnexpectedChar;
+        return nullptr;
+    }
+
+    IMPLEMENT::ValueNull* readValueNull()
+    {
+        // null
+        do {
+            char c = readNext();
+            if (c != 'n' && c != 'N')
+            {
+                error = JEMismatchValueType;
+                break;
+            }
+            c = readNext();
+            if (c != 'u')
+            {
+                error = JEUnexpectedChar;
+                break;
+            }
+            c = readNext();
+            if (c != 'l')
+            {
+                error = JEUnexpectedChar;
+                break;
+            }
+            c = readNext();
+            if (c != 'l')
+            {
+                error = JEUnexpectedChar;
+                break;
+            }
+        } while (false);
+        return failed() ? nullptr : IMPLEMENT::ValueNull::create();
+    }
+
+    IMPLEMENT::ValueBoolean* readValueBoolean()
+    {
+        // true/false
+        bool result = false;
+        do {
+            char c = readNext();
+            if (c == 't' || c == 'T')
+            {
+                c = readNext();
+                if (c != 'r')
                 {
-                    (*pos).second = pv;
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                c = readNext();
+                if (c != 'u')
+                {
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                c = readNext();
+                if (c != 'e')
+                {
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                result = true;
+            }
+            else if (c == 'f' || c == 'F')
+            {
+                c = readNext();
+                if (c != 'a')
+                {
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                c = readNext();
+                if (c != 'l')
+                {
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                c = readNext();
+                if (c != 's')
+                {
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                c = readNext();
+                if (c != 'e')
+                {
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                result = false;
+            }
+            else
+            {
+                error = JEMismatchValueType;
+            }
+        } while (false);
+
+        return failed() ? nullptr : IMPLEMENT::ValueBoolean::create(result);
+    }
+
+    IMPLEMENT::ValueNumber* readValueNumber()
+    {
+        // Number = [minus] int [frac] [exp]
+        // {
+        //    decimal - point = %x2E; .
+        //    digit1 - 9 = %x31 - 39; 1 - 9
+        //    e = %x65 / %x45; e E
+        //    exp = e[minus / plus] 1 * DIGIT
+        //    frac = decimal - point 1 * DIGIT
+        //    int = zero / (digit1 - 9 * DIGIT)
+        //    minus = %x2D; -
+        //    plus = %x2B; +
+        //    zero = %x30; 0
+        // }
+
+        char c = peekNextNotSpace();
+        bool dotFlag = false;
+        bool eFlag = false;
+        bool signFlag = false;
+
+        std::string s;
+
+        if (c == '-')
+        {
+            signFlag = true;
+            s.append(&c, &c + 1);
+            readNext();
+            c = peekNext();
+        }
+
+        do {
+
+            if (c == '-')
+            {
+                error = JEUnexpectedChar;
+                break;
+            }
+            else if (c == '.')
+            {
+                if (dotFlag)
+                {
+                    error = JEUnexpectedChar;
+                    break;
                 }
                 else
                 {
-                    vals.insert(pos, std::pair<std::string, std::shared_ptr<ValueImpl>>(key, pv));
+                    dotFlag = true;
+                    s.append(&c, &c + 1);
+                    readNext();
+                    c = peekNext();
                 }
             }
-        }
-    }
-
-    std::shared_ptr<ValueImpl> get(const std::string& key)
-    {
-        auto pos = std::find_if(vals.begin(), vals.end(), [&](const value_type& item)->bool{
-            return (0 == _stricmp(key.c_str(), item.first.c_str()));
-        });
-        return (pos == vals.end()) ? std::shared_ptr<ValueImpl>() : (*pos).second;
-    }
-
-    std::shared_ptr<ValueImpl> get(const std::string& key) const
-    {
-        auto pos = std::find_if(vals.begin(), vals.end(), [&](const value_type& item)->bool{
-            return (0 == _stricmp(key.c_str(), item.first.c_str()));
-        });
-        return (pos == vals.end()) ? std::shared_ptr<ValueImpl>() : (*pos).second;
-    }
-
-    std::shared_ptr<ValueImpl> operator [] (const std::string& key)
-    {
-        return get(key);
-    }
-
-    std::shared_ptr<ValueImpl> operator [] (const std::string& key) const
-    {
-        return get(key);
-    }
-
-    bool remove(const std::string& key)
-    {
-        auto pos = std::find_if(vals.begin(), vals.end(), [&](const value_type& item)->bool{
-            return (0 == _stricmp(key.c_str(), item.first.c_str()));
-        });
-        if(pos == vals.end())
-            return false;
-        vals.erase(pos);
-        return true;
-    }
-    
-private:
-    virtual bool write(std::ostream& stm) const override
-    {
-        bool firstItem = true;
-        stm << "{";
-        for(const std::pair<std::string, std::shared_ptr<ValueImpl>>& item : vals)
-        {
-            if(firstItem)
-                firstItem = false;
+            else if (c == 'e' || c == 'E')
+            {
+                if (eFlag)
+                {
+                    error = JEUnexpectedChar;
+                    break;
+                }
+                
+                eFlag = true;
+                s.append(&c, &c + 1);
+                readNext();
+                c = peekNext();
+                if (c == '+' || c == '-')
+                {
+                    s.append(&c, &c + 1);
+                    readNext();
+                    c = peekNext();
+                }
+            }
             else
-                stm << ",";
-            stm << "\"";
-            stm << Utils::escape(item.first);
-            stm << "\":";
-            item.second->write(stm);
+            {
+                if (c <'0' || c > '9')
+                {
+                    break;
+                }
+                s.append(&c, &c + 1);
+                readNext();
+                c = peekNext();
+            }
+
+        } while (!stm.eof());
+
+        if (failed())
+            return nullptr;
+
+        IMPLEMENT::ValueNumber* pNumber = nullptr;
+
+        if (dotFlag || eFlag)
+        {
+            // Decimal
+            pNumber = IMPLEMENT::ValueNumber::create(std::stod(s));
         }
-        stm << "}";
+        else
+        {
+            // Integer
+            pNumber = IMPLEMENT::ValueNumber::create(std::stoll(s));
+        }
+
+        if (pNumber == nullptr)
+            error = JEBadAlloc;
+
+        return pNumber;
     }
-    
-    static std::shared_ptr<ValueImpl> read(std::istream& stm)
+
+    std::string readEscapedString()
     {
+        char c = readNext();
+        if (c != '\"')
+        {
+            error = JEMismatchValueType;
+            return nullptr;
+        }
+
+        std::string s;
+
+        do {
+
+            c = readNext();
+            if (stm.eof())
+            {
+                error = JEUnexpectedEnd;
+                break;
+            }
+
+            // Finish
+            if ('\"' == c)
+                break;
+
+            s.append(&c, &c + 1);
+
+            if ('\\' == c)
+            {
+                c = readNext();
+                if (stm.eof())
+                {
+                    error = JEUnexpectedEnd;
+                    break;
+                }
+                s.append(&c, &c + 1);
+            }
+
+        } while (true);
+
+        return s;
+    }
+
+    IMPLEMENT::ValueString* readValueString()
+    {
+        const std::string& s = readEscapedString();
+        return failed() ? nullptr : IMPLEMENT::ValueString::create(s, true);
+    }
+
+    IMPLEMENT::ValueObject* readValueObject()
+    {
+        char c = readNext();
+        if (c != '{')
+        {
+            error = JEMismatchValueType;
+            return nullptr;
+        }
+
+        IMPLEMENT::ValueObject* pObject = IMPLEMENT::ValueObject::create();
+        if(nullptr == pObject)
+        {
+            error = JEBadAlloc;
+            return nullptr;
+        }
+
+        do {
+
+            c = peekNextNotSpace();
+            if(stm.eof())
+            {
+                error = JEUnexpectedEnd;
+                break;
+            }
+
+            // Done
+            if (c == '}')
+            {
+                readNext();
+                break;
+            }
+
+            if (c == ',')
+            {
+                readNext();
+                continue;
+            }
+
+            if('\"' != c)
+            {
+                error = JEUnexpectedChar;
+                break;
+            }
+
+            // Read key
+            const std::string& key = readEscapedString();
+            if (failed())
+                break;
+
+            // Read colon
+            c = peekNextNotSpace();
+            if (failed())
+                break;
+            if (c != ':')
+            {
+                error = JEMissingColon;
+                break;
+            }
+            // Skip it
+            readNext();
+
+            // Read Value
+            IMPLEMENT::ValueBase* value = readValue();
+            if (failed() || value == nullptr)
+                break;
+
+            // Insert new child item
+            pObject->set(Utils::unescape(key), std::shared_ptr<IMPLEMENT::ValueBase>(value));
+
+        } while (true);
+
+        if (failed())
+        {
+            delete pObject;
+            pObject = nullptr;
+        }
+
+        return pObject;
+    }
+
+    IMPLEMENT::ValueArray* readValueArray()
+    {
+        char c = readNext();
+        if (c != '[')
+        {
+            error = JEMismatchValueType;
+            return nullptr;
+        }
+
+        IMPLEMENT::ValueArray* pArray = IMPLEMENT::ValueArray::create();
+        if (nullptr == pArray)
+        {
+            error = JEBadAlloc;
+            return nullptr;
+        }
+
+        do {
+
+            c = peekNextNotSpace();
+            if (stm.eof())
+            {
+                error = JEUnexpectedEnd;
+                break;
+            }
+
+            // Done
+            if (c == ']')
+                break;
+
+            if (c == ',')
+                continue;
+
+            // Read Value
+            IMPLEMENT::ValueBase* value = readValue();
+            if (failed() || value == nullptr)
+                break;
+
+            // Insert new child item
+            pArray->push_back(std::shared_ptr<IMPLEMENT::ValueBase>(value));
+
+        } while (true);
+
+        if (failed())
+        {
+            delete pArray;
+            pArray = nullptr;
+        }
+
+        return pArray;
     }
 
 private:
-    bool keepOrder;
-    std::vector<std::pair<std::string, std::shared_ptr<ValueImpl>>> vals;
-    friend class Value;
-    friend class Object;
-    friend class ValueImpl;
+    std::istream& stm;
+    size_t pos;
+    JsonError error;
 };
 
-}   // namespace Impl
+template<typename T>
+class StringParser : public Parser
+{
+public:
+    StringParser(const std::basic_string<T>& s)
+        : iss(Utils::toUtf8(s)), Parser(iss)
+    {
+    }
+    virtual ~StringParser()
+    {
+    }
 
+    void reset(const std::basic_string<T>& s)
+    {
+        iss.str(Utils::toUtf8(s));
+        iss.seekg(0);
+    }
 
+private:
+    std::istringstream iss;
+};
 
+}   // namespace IMPLEMENT
+
+template <ValueType T>
+class Value
+{
+public:
+    Value() {}
+    ~Value() {}
+    inline ValueType getType() const { return T; }
+    inline std::shared_ptr<IMPLEMENT::ValueBase> getBase() const { return base; }
+
+private:
+    std::shared_ptr<IMPLEMENT::ValueBase> base;
+};
+
+template<>
+class Value<JsonNull>
+{
+public:
+    inline std::string serialize() const { return std::string("Null"); }
+};
+
+template<>
+class Value<JsonBoolean>
+{
+public:
+    Value(bool v) : val(v) {}
+    inline std::string serialize() const { return std::string(val ? "true" : "false"); }
+
+private:
+    bool val;
+};
+
+template<>
+class Value<JsonNumber>
+{
+public:
+    explicit Value(int32_t v) : n(v), valSigned(n < 0), valDecimal(false) {}
+    explicit Value(int64_t v) : n(v), valSigned(n < 0), valDecimal(false) {}
+    explicit Value(uint32_t v) : u(v), valSigned(false), valDecimal(false) {}
+    explicit Value(uint64_t v) : u(v), valSigned(false), valDecimal(false) {}
+    explicit Value(float v) : d(v), valSigned(d < 0), valDecimal(true) {}
+    explicit Value(double v) : d(v), valSigned(d < 0), valDecimal(true) {}
+    
+    std::string serialize() const
+    {
+    }
+
+    inline bool isSigned() const { return valSigned; }
+    inline bool isDecimal() const { return valDecimal; }
+
+    inline int32_t toInt32() const { return valDecimal ? static_cast<int32_t>(d) : static_cast<int32_t>(n); }
+    inline int64_t toInt64() const { return valDecimal ? static_cast<int64_t>(d) : n; }
+    inline uint32_t toUint32() const { return valDecimal ? static_cast<uint32_t>(d) : static_cast<uint32_t>(u); }
+    inline uint64_t toUint64() const { return valDecimal ? static_cast<uint64_t>(d) : u; }
+    inline double toDecimal() const { return valDecimal ? d : (n*1.0); }
+
+private:
+    bool valSigned;
+    bool valDecimal;
+    union {
+        int64_t n;
+        uint64_t u;
+        double d;
+    };
+};
+
+template<>
+class Value<JsonString>
+{
+public:
+    Value();
+    virtual ~Value();
+};
+
+template<>
+class Value<JsonObject>
+{
+public:
+    Value();
+    virtual ~Value();
+
+    std::string serialize() const
+    {
+    }
+    
+    void deserialize()
+    {
+    }
+
+private:
+    std::vector<Value*> valList;
+};
+
+template<>
+class Value<JsonArray>
+{
+public:
+    Value();
+};
 
 }   // namespace JSONX
 
