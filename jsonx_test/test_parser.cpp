@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE(CheckString)
 #else
     std::shared_ptr<JSONX::IMPLEMENT::ValueString> sp(dynamic_cast<JSONX::IMPLEMENT::ValueString*>(parser.readValue()));
 #endif
-    BOOST_CHECK(sp != nullptr && sp->isString() && sp->getString() == std::string(""));
+    BOOST_CHECK(sp != nullptr && sp->isString() && sp->get() == std::string(""));
 
     parser.reset("\"Hello World!\"");
     BOOST_CHECK_EQUAL(JSONX::ValueType::JsonString, parser.checkValueType());
@@ -109,7 +109,7 @@ BOOST_AUTO_TEST_CASE(CheckString)
 #else
     sp.reset(dynamic_cast<JSONX::IMPLEMENT::ValueString*>(parser.readValue()));
 #endif
-    BOOST_CHECK(sp != nullptr && sp->isString() && sp->getString() == std::string("Hello World!"));
+    BOOST_CHECK(sp != nullptr && sp->isString() && sp->get() == std::string("Hello World!"));
 
     parser.reset("\"Hello\u0020\\\"World\\\"!\"");
     BOOST_CHECK_EQUAL(JSONX::ValueType::JsonString, parser.checkValueType());
@@ -118,7 +118,7 @@ BOOST_AUTO_TEST_CASE(CheckString)
 #else
     sp.reset(dynamic_cast<JSONX::IMPLEMENT::ValueString*>(parser.readValue()));
 #endif
-    BOOST_CHECK(sp != nullptr && sp->isString() && sp->getString() == std::string("Hello \"World\"!"));
+    BOOST_CHECK(sp != nullptr && sp->isString() && sp->get() == std::string("Hello \"World\"!"));
 }
 
 BOOST_AUTO_TEST_CASE(CheckObject)
@@ -142,7 +142,7 @@ BOOST_AUTO_TEST_CASE(CheckObject)
     BOOST_CHECK(sp != nullptr && sp->isObject() && !sp->empty() && sp->size() == 7);
 
     const JSONX::IMPLEMENT::ValueString* pName = dynamic_cast<const JSONX::IMPLEMENT::ValueString*>(sp->get("name").get());
-    BOOST_CHECK_EQUAL(pName->getString(), "John");
+    BOOST_CHECK_EQUAL(pName->get(), "John");
 
     const JSONX::IMPLEMENT::ValueNumber* pAge = dynamic_cast<const JSONX::IMPLEMENT::ValueNumber*>(sp->get("AGE").get());
     BOOST_CHECK(pAge != nullptr && pAge->isNumber() && !pAge->isDecimal() && pAge->toUint32() == 20);
@@ -185,7 +185,7 @@ BOOST_AUTO_TEST_CASE(CheckArray)
     BOOST_CHECK(sp != nullptr && sp->isArray() && !sp->empty() && sp->size() == 7);
 
     const JSONX::IMPLEMENT::ValueString* pName = dynamic_cast<const JSONX::IMPLEMENT::ValueString*>(sp->get(0).get());
-    BOOST_CHECK_EQUAL(pName->getString(), "John");
+    BOOST_CHECK_EQUAL(pName->get(), "John");
 
     const JSONX::IMPLEMENT::ValueNumber* pAge = dynamic_cast<const JSONX::IMPLEMENT::ValueNumber*>(sp->get(1).get());
     BOOST_CHECK(pAge != nullptr && pAge->isNumber() && !pAge->isDecimal() && pAge->toUint32() == 20);

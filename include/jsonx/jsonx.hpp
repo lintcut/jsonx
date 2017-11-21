@@ -219,8 +219,6 @@ typedef enum JsonError {
     JEMissingColon
 } JsonError;
 
-namespace IMPLEMENT {
-
 class SerializeConfig
 {
 public:
@@ -271,6 +269,8 @@ private:
     const std::string lineEnding;
 };
 
+namespace IMPLEMENT {
+
 class ValueBase
 {
 public:
@@ -313,6 +313,7 @@ public:
 
     operator bool() const { return val; }
     inline bool get() const { return val; }
+    inline void set(bool v) { val = v; }
 
 private:
     explicit ValueBoolean(bool v)
@@ -340,12 +341,20 @@ public:
 
     inline bool isSigned() const { return valSigned; }
     inline bool isDecimal() const { return valDecimal; }
+    inline bool isInteger() const { return !valDecimal; }
 
     inline int32_t toInt32() const { return valDecimal ? static_cast<int32_t>(d) : static_cast<int32_t>(n); }
     inline int64_t toInt64() const { return valDecimal ? static_cast<int64_t>(d) : n; }
     inline uint32_t toUint32() const { return valDecimal ? static_cast<uint32_t>(d) : static_cast<uint32_t>(u); }
     inline uint64_t toUint64() const { return valDecimal ? static_cast<uint64_t>(d) : u; }
     inline double toDecimal() const { return valDecimal ? d : (n*1.0); }
+
+    inline void set(int32_t v) { n = v; valSigned = (v < 0); valDecimal = false; }
+    inline void set(int64_t v) { n = v; valSigned = (v < 0); valDecimal = false; }
+    inline void set(uint32_t v) { u = v; valSigned = false; valDecimal = false; }
+    inline void set(uint64_t v) { u = v; valSigned = false; valDecimal = false; }
+    inline void set(float_t v) { d = v; valSigned = (v < 0); valDecimal = true; }
+    inline void set(double_t v) { d = v; valSigned = (v < 0); valDecimal = true; }
 
 private:
     explicit ValueNumber(int32_t v)
@@ -405,15 +414,21 @@ class ValueString : public ValueBase
 public:
     virtual ~ValueString() {}
     virtual bool isString() const { return true; }
-    virtual std::string serialize(SerializeConfig* config) const { return Utils::escape(val); }
+    virtual std::string serialize(SerializeConfig* config) const
+    {
+        std::string s("\"");
+        s.append(Utils::escape(val));
+        s.append("\"");
+        return s;
+    }
 
     static ValueString* create(const std::string& s, bool escaped) { return new ValueString(s, escaped); }
     static ValueString* create(const std::wstring& s, bool escaped) { return new ValueString(s, escaped); }
 
     inline bool empty() const { return val.empty(); }
     inline void clear() { val.clear(); }
-    inline const std::string& getString() const { return val; }
-    inline std::wstring getWstring() const { return Utils::toUtf16(val); }
+    inline const std::string& get() const { return val; }
+    inline std::wstring getw() const { return Utils::toUtf16(val); }
 
     void set(const std::string& s, bool escaped)
     {
@@ -504,7 +519,7 @@ public:
         return (pos != vals.end()) ? (*pos).second : std::shared_ptr<ValueBase>(nullptr);
     }
 
-    void set(const std::string& key, std::shared_ptr<ValueBase> sp)
+    std::shared_ptr<ValueBase> set(const std::string& key, std::shared_ptr<ValueBase> sp)
     {
         iterator pos = find(key);
         if (pos != vals.end())
@@ -525,17 +540,19 @@ public:
                 vals.insert(pos, value_type(key, sp));
             }
         }
+        return sp;
     }
 
-    void set(const std::string& key, bool v) { set(key, std::shared_ptr<ValueBase>(ValueBoolean::create(v))); }
-    void set(const std::string& key, int32_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void set(const std::string& key, int64_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void set(const std::string& key, uint32_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void set(const std::string& key, uint64_t v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void set(const std::string& key, float v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void set(const std::string& key, double v) { set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void set(const std::string& key, const std::string& v) { set(key, std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
-    void set(const std::string& key, const std::wstring& v) { set(key, std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+    std::shared_ptr<ValueBase> set(const std::string& key) { return set(key, std::shared_ptr<ValueBase>(ValueNull::create())); }
+    std::shared_ptr<ValueBase> set(const std::string& key, bool v) { return set(key, std::shared_ptr<ValueBase>(ValueBoolean::create(v))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, int32_t v) { return set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, int64_t v) { return set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, uint32_t v) { return set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, uint64_t v) { return set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, float v) { return set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, double v) { return set(key, std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, const std::string& v) { return set(key, std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+    std::shared_ptr<ValueBase> set(const std::string& key, const std::wstring& v) { return set(key, std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
 
 private:
     iterator find(const std::string& key)
@@ -612,21 +629,21 @@ public:
     inline iterator end() { return vals.end(); }
     inline const_iterator end() const { return vals.end(); }
 
-    std::shared_ptr<ValueBase> get(uint32_t index) const
+    std::shared_ptr<ValueBase> get(size_t index) const
     {
         return (index < vals.size()) ? vals[index] : std::shared_ptr<ValueBase>();
     }
 
-    void push_back(std::shared_ptr<ValueBase> sp) { vals.push_back(sp); }
-    void push_back(bool v) { vals.push_back(std::shared_ptr<ValueBase>(ValueBoolean::create(v))); }
-    void push_back(int32_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void push_back(int64_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void push_back(uint32_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void push_back(uint64_t v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void push_back(float v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void push_back(double v) { vals.push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
-    void push_back(const std::string& v) { vals.push_back(std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
-    void push_back(const std::wstring& v) { vals.push_back(std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+    std::shared_ptr<ValueBase> push_back(std::shared_ptr<ValueBase> sp) { vals.push_back(sp); return sp; }
+    std::shared_ptr<ValueBase> push_back(bool v) { return push_back(std::shared_ptr<ValueBase>(ValueBoolean::create(v))); }
+    std::shared_ptr<ValueBase> push_back(int32_t v) { return push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> push_back(int64_t v) { return push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> push_back(uint32_t v) { return push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> push_back(uint64_t v) { return push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> push_back(float v) { return push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> push_back(double v) { return push_back(std::shared_ptr<ValueBase>(ValueNumber::create(v))); }
+    std::shared_ptr<ValueBase> push_back(const std::string& v) { return push_back(std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
+    std::shared_ptr<ValueBase> push_back(const std::wstring& v) { return push_back(std::shared_ptr<ValueBase>(ValueString::create(v, false))); }
 
 private:
     ValueArray() {}
@@ -1158,103 +1175,286 @@ private:
 
 }   // namespace IMPLEMENT
 
-template <ValueType T>
+class ValueFactory
+{
+public:
+    static IMPLEMENT::ValueBase* create(ValueType type)
+    {
+        switch (type)
+        {
+        case JsonNull:
+            return IMPLEMENT::ValueNull::create();
+        case JsonBoolean:
+            return IMPLEMENT::ValueBoolean::create(false);
+        case JsonNumber:
+            return IMPLEMENT::ValueNumber::create(0LL);
+        case JsonString:
+            return IMPLEMENT::ValueString::create("", false);
+        case JsonObject:
+            return IMPLEMENT::ValueObject::create(true);
+        case JsonArray:
+            return IMPLEMENT::ValueArray::create();
+        default:
+            break;
+        }
+        return nullptr;
+    }
+
+    static IMPLEMENT::ValueNull* createNull()
+    {
+        IMPLEMENT::ValueNull::create();
+    }
+
+    static IMPLEMENT::ValueBoolean* createBoolean(bool v)
+    {
+        IMPLEMENT::ValueBoolean::create(v);
+    }
+
+    static IMPLEMENT::ValueString* createString(const std::string& s, bool escaped)
+    {
+        IMPLEMENT::ValueString::create(s, escaped);
+    }
+
+    static IMPLEMENT::ValueString* createString(const std::wstring& s, bool escaped)
+    {
+        IMPLEMENT::ValueString::create(s, escaped);
+    }
+
+    static IMPLEMENT::ValueObject* createObject(bool keepOrder)
+    {
+        IMPLEMENT::ValueObject::create(keepOrder);
+    }
+
+    static IMPLEMENT::ValueArray* createArray()
+    {
+        IMPLEMENT::ValueArray::create();
+    }
+};
+
 class Value
 {
 public:
-    Value() {}
-    ~Value() {}
-    inline ValueType getType() const { return T; }
-    inline std::shared_ptr<IMPLEMENT::ValueBase> getBase() const { return base; }
-
-private:
-    std::shared_ptr<IMPLEMENT::ValueBase> base;
-};
-
-template<>
-class Value<JsonNull>
-{
-public:
-    inline std::string serialize() const { return std::string("Null"); }
-};
-
-template<>
-class Value<JsonBoolean>
-{
-public:
-    Value(bool v) : val(v) {}
-    inline std::string serialize() const { return std::string(val ? "true" : "false"); }
-
-private:
-    bool val;
-};
-
-template<>
-class Value<JsonNumber>
-{
-public:
-    explicit Value(int32_t v) : n(v), valSigned(n < 0), valDecimal(false) {}
-    explicit Value(int64_t v) : n(v), valSigned(n < 0), valDecimal(false) {}
-    explicit Value(uint32_t v) : u(v), valSigned(false), valDecimal(false) {}
-    explicit Value(uint64_t v) : u(v), valSigned(false), valDecimal(false) {}
-    explicit Value(float v) : d(v), valSigned(d < 0), valDecimal(true) {}
-    explicit Value(double v) : d(v), valSigned(d < 0), valDecimal(true) {}
-    
-    std::string serialize() const
+    Value() : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueNull::create())) {}
+    Value(const Value& rhs) : vp(rhs.vp) {}
+    explicit Value(bool v) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueBoolean::create(v))) {}
+    explicit Value(int32_t v) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueNumber::create(v))) {}
+    explicit Value(int64_t v) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueNumber::create(v))) {}
+    explicit Value(uint32_t v) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueNumber::create(v))) {}
+    explicit Value(uint64_t v) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueNumber::create(v))) {}
+    explicit Value(float_t v) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueNumber::create(v))) {}
+    explicit Value(double_t v) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueNumber::create(v))) {}
+    explicit Value(const std::string& v, bool escaped=false) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueString::create(v, escaped))) {}
+    explicit Value(const std::wstring& v, bool escaped=false) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueString::create(v, escaped))) {}
+    explicit Value(std::shared_ptr<IMPLEMENT::ValueBase> p) : vp(p) {}
+    explicit Value(ValueType vt)
+        : vp(std::shared_ptr<IMPLEMENT::ValueBase>(ValueFactory::create(vt)))
     {
     }
+    virtual ~Value() {}
 
-    inline bool isSigned() const { return valSigned; }
-    inline bool isDecimal() const { return valDecimal; }
-
-    inline int32_t toInt32() const { return valDecimal ? static_cast<int32_t>(d) : static_cast<int32_t>(n); }
-    inline int64_t toInt64() const { return valDecimal ? static_cast<int64_t>(d) : n; }
-    inline uint32_t toUint32() const { return valDecimal ? static_cast<uint32_t>(d) : static_cast<uint32_t>(u); }
-    inline uint64_t toUint64() const { return valDecimal ? static_cast<uint64_t>(d) : u; }
-    inline double toDecimal() const { return valDecimal ? d : (n*1.0); }
-
-private:
-    bool valSigned;
-    bool valDecimal;
-    union {
-        int64_t n;
-        uint64_t u;
-        double d;
-    };
-};
-
-template<>
-class Value<JsonString>
-{
-public:
-    Value();
-    virtual ~Value();
-};
-
-template<>
-class Value<JsonObject>
-{
-public:
-    Value();
-    virtual ~Value();
-
-    std::string serialize() const
+    Value& operator = (const Value& rhs)
     {
-    }
-    
-    void deserialize()
-    {
+        if (this != &rhs)
+        {
+            vp = rhs.vp;
+        }
+        return *this;
     }
 
-private:
-    std::vector<Value*> valList;
-};
+    inline bool valid() const { return (nullptr != vp); }
+    inline std::string serialize(SerializeConfig* config = nullptr) { return vp->serialize(config); }
 
-template<>
-class Value<JsonArray>
-{
-public:
-    Value();
+    inline bool isNull() const { return valid() && vp->isNull(); }
+    inline bool isBoolean() const { return valid() && vp->isBoolean(); }
+    inline bool isNumber() const { return valid() && vp->isNumber(); }
+    inline bool isString() const { return valid() && vp->isString(); }
+    inline bool isObject() const { return valid() && vp->isObject(); }
+    inline bool isArray() const { return valid() && vp->isArray(); }
+
+    inline bool getBoolean() const { return (isBoolean() && dynamic_cast<IMPLEMENT::ValueBoolean*>(vp.get())->get()); }
+    inline void set(bool v) { if (isBoolean()) dynamic_cast<IMPLEMENT::ValueBoolean*>(vp.get())->set(v); }
+
+    inline bool isSignedNumber() const { return (isNumber() && dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->isSigned()); }
+    inline bool isIntegerNumber() const { return (isNumber() && dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->isInteger()); }
+    inline bool isDecimalNumber() const { return (isNumber() && dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->isDecimal()); }
+    inline int32_t getInt32() const
+    {
+        return isNumber() ? dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->toInt32() : 0;
+    }
+    inline int64_t getInt64() const
+    {
+        return isNumber() ? dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->toInt64() : 0;
+    }
+    inline uint32_t getUint32() const
+    {
+        return isNumber() ? dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->toUint32() : 0;
+    }
+    inline uint64_t getUint64() const
+    {
+        return isNumber() ? dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->toUint64() : 0;
+    }
+    inline double_t getDecimal() const
+    {
+        return isNumber() ? dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->toDecimal() : 0.0;
+    }
+
+    inline void set(int32_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
+    inline void set(int64_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
+    inline void set(uint32_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
+    inline void set(uint64_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
+    inline void set(float_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
+    inline void set(double_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
+
+    inline const std::string& getString() const
+    {
+        return dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->get();
+    }
+    inline std::wstring getWstring() const
+    {
+        return dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->getw();
+    }
+
+    Value operator [](const std::string& key)
+    {
+        return isObject() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key));
+    }
+
+    const Value& operator [](const std::string& key) const
+    {
+        return isObject() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key));
+    }
+
+    Value set(const std::string& key, std::shared_ptr<IMPLEMENT::ValueBase> sp)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, sp))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, Value& v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v.getPtr()))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, bool v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, int32_t v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, uint32_t v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, int64_t v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, uint64_t v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, double_t v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, const std::string& v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value set(const std::string& key, const std::wstring& v)
+    {
+        return isObject()
+            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+
+    Value operator [](size_t id)
+    {
+        return isArray() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id));
+    }
+
+    const Value& operator [](size_t id) const
+    {
+        return isArray() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id));
+    }
+
+    Value push_back(std::shared_ptr<IMPLEMENT::ValueBase> sp)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(sp))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(bool v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(int32_t v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(uint32_t v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(int64_t v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(uint64_t v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(double_t v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(const std::string& v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+    Value push_back(const std::wstring& v)
+    {
+        return isArray()
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v))
+            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+    }
+
+protected:
+    std::shared_ptr<IMPLEMENT::ValueBase> getPtr() { return vp; }
+
+private:
+    std::shared_ptr<IMPLEMENT::ValueBase> vp;
 };
 
 }   // namespace JSONX
