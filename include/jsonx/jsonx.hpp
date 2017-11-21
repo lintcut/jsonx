@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <cctype>
 #include <locale>
 #include <codecvt>
@@ -228,8 +229,8 @@ public:
         , lineEnding("\n")
     {
     }
-    SerializeConfig(bool formatted, const char* eol)
-        : wellFormatted(false)
+    SerializeConfig(bool formatted, const char* eol="\n")
+        : wellFormatted(formatted)
         , indentSize(0)
         , lineEnding(eol)
     {
@@ -249,7 +250,7 @@ public:
             if (indentSize > indent.size())
             {
                 // Always round to 64
-                indent.resize(((indent.size() + 63) / 64) * 64, ' ');
+                indent.resize(((indentSize + 63) / 64) * 64, ' ');
             }
         }
     }
@@ -263,10 +264,10 @@ public:
     inline const std::string& getLineEnding() const { return lineEnding; }
 
 private:
-    bool wellFormatted;
+    const bool wellFormatted;
+    const std::string lineEnding;
     std::vector<char> indent;
     size_t indentSize;
-    const std::string lineEnding;
 };
 
 namespace IMPLEMENT {
@@ -284,6 +285,7 @@ public:
     virtual bool isArray() const { return false; }
 
     virtual std::string serialize(SerializeConfig* config) const = 0;
+    virtual size_t size() const = 0;
 
 protected:
     ValueBase() {}
@@ -295,6 +297,7 @@ public:
     virtual ~ValueNull() {}
     virtual bool isNull() const { return true; }
     virtual std::string serialize(SerializeConfig* config) const { return "null"; }
+    virtual size_t size() const { return 0; }
 
     static ValueNull* create() { return new ValueNull(); }
 
@@ -307,6 +310,7 @@ class ValueBoolean : public ValueBase
 public:
     virtual ~ValueBoolean() {}
     virtual bool isBoolean() const { return true; }
+    virtual size_t size() const { return 1; }
     virtual std::string serialize(SerializeConfig* config) const { return val ? "true" : "false"; }
 
     static ValueBoolean* create(bool v) { return new ValueBoolean(v); }
@@ -331,6 +335,7 @@ public:
     virtual ~ValueNumber() {}
     virtual bool isNumber() const { return true; }
     virtual std::string serialize(SerializeConfig* config) const { return valDecimal ? std::to_string(d) : std::to_string(n); }
+    virtual size_t size() const { return 1; }
 
     static ValueNumber* create(int32_t v) { return new ValueNumber(v); }
     static ValueNumber* create(int64_t v) { return new ValueNumber(v); }
@@ -421,6 +426,7 @@ public:
         s.append("\"");
         return s;
     }
+    virtual size_t size() const { return 1; }
 
     static ValueString* create(const std::string& s, bool escaped) { return new ValueString(s, escaped); }
     static ValueString* create(const std::wstring& s, bool escaped) { return new ValueString(s, escaped); }
@@ -462,9 +468,17 @@ public:
     {
         std::string s("{");
         if (config && config->isWellFormatted())
+        {
             config->indentInc();
+            s.append(config->getLineEnding());
+        }
+        bool firstItem = true;
         std::for_each(begin(), end(), [&](const value_type& item) {
-            if (s.length() > 1)
+            if (firstItem)
+            {
+                firstItem = false;
+            }
+            else
             {
                 s.append(",");
                 if (config && config->isWellFormatted())
@@ -479,6 +493,8 @@ public:
             s.append("\"");
             s.append(Utils::escape(item.first));
             s.append("\":");
+            if (config && config->isWellFormatted())
+                s.append(" ");
             // Value
             s.append(item.second->serialize(config));
         });
@@ -492,6 +508,7 @@ public:
         s.append("}");
         return s;
     }
+    virtual size_t size() const { return vals.size(); }
 
     static ValueObject* create(bool ko = true) { return new ValueObject(ko); }
 
@@ -502,7 +519,6 @@ public:
     inline bool keepInitOrder() const { return keepOrder; }
     inline bool empty() const { return vals.empty(); }
     inline void clear() { vals.clear(); }
-    inline size_t size() const { return vals.size(); }
     inline iterator begin() { return vals.begin(); }
     inline const_iterator begin() const { return vals.begin(); }
     inline iterator end() { return vals.end(); }
@@ -588,9 +604,17 @@ public:
     {
         std::string s("[");
         if (config && config->isWellFormatted())
+        {
             config->indentInc();
+            s.append(config->getLineEnding());
+        }
+        bool firstItem = true;
         std::for_each(begin(), end(), [&](const value_type& item) {
-            if (s.length() > 1)
+            if (firstItem)
+            {
+                firstItem = false;
+            }
+            else
             {
                 s.append(",");
                 if (config && config->isWellFormatted())
@@ -614,6 +638,7 @@ public:
         s.append("]");
         return s;
     }
+    virtual size_t size() const { return vals.size(); }
 
     static ValueArray* create() { return new ValueArray(); }
 
@@ -623,7 +648,6 @@ public:
 
     inline bool empty() const { return vals.empty(); }
     inline void clear() { vals.clear(); }
-    inline size_t size() const { return vals.size(); }
     inline iterator begin() { return vals.begin(); }
     inline const_iterator begin() const { return vals.begin(); }
     inline iterator end() { return vals.end(); }
@@ -1261,8 +1285,33 @@ public:
         return *this;
     }
 
+    static Value parse(const std::string& s)
+    {
+        std::istringstream ss(s);
+        IMPLEMENT::Parser parser(ss);
+        return Value(std::shared_ptr<IMPLEMENT::ValueBase>(parser.readValue()));
+    }
+
+    static Value parse(const std::wstring& s)
+    {
+        std::istringstream ss(Utils::toUtf8(s));
+        IMPLEMENT::Parser parser(ss);
+        return Value(std::shared_ptr<IMPLEMENT::ValueBase>(parser.readValue()));
+    }
+
+    static Value parseFile(const std::wstring& file)
+    {
+        std::ifstream ifs;
+        ifs.open(file, std::ifstream::in);
+        if (!ifs.is_open())
+            return Value(std::shared_ptr<IMPLEMENT::ValueBase>());
+        IMPLEMENT::Parser parser(ifs);
+        return Value(std::shared_ptr<IMPLEMENT::ValueBase>(parser.readValue()));
+    }
+
     inline bool valid() const { return (nullptr != vp); }
-    inline std::string serialize(SerializeConfig* config = nullptr) { return vp->serialize(config); }
+    inline std::string serialize(SerializeConfig* config = nullptr) const { return vp->serialize(config); }
+    inline size_t size() const { return valid() ? vp->size() : 0; }
 
     inline bool isNull() const { return valid() && vp->isNull(); }
     inline bool isBoolean() const { return valid() && vp->isBoolean(); }
@@ -1316,12 +1365,26 @@ public:
 
     Value operator [](const std::string& key)
     {
-        return isObject() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key));
+#ifdef _DEBUG
+        if (!isObject())
+            return Value();
+        else
+            return Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key));
+#else
+        return isObject() ?Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key)) : Value();
+#endif
     }
 
-    const Value& operator [](const std::string& key) const
+    const Value operator [](const std::string& key) const
     {
-        return isObject() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key));
+#ifdef _DEBUG
+        if (!isObject())
+            return Value();
+        else
+            return Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key));
+#else
+        return isObject() ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->get(key)) : Value();
+#endif
     }
 
     Value set(const std::string& key, std::shared_ptr<IMPLEMENT::ValueBase> sp)
@@ -1387,12 +1450,26 @@ public:
 
     Value operator [](size_t id)
     {
-        return isArray() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id));
+#ifdef _DEBUG
+        if (!isArray())
+            return Value();
+        else
+            return Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id));
+#else
+        return isArray() ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id)) : Value();
+#endif
     }
 
-    const Value& operator [](size_t id) const
+    const Value operator [](size_t id) const
     {
-        return isArray() ? Value() : Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id));
+#ifdef _DEBUG
+        if (!isArray())
+            return Value();
+        else
+            return Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id));
+#else
+        return isArray() ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->get(id)) : Value();
+#endif
     }
 
     Value push_back(std::shared_ptr<IMPLEMENT::ValueBase> sp)

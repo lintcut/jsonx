@@ -163,7 +163,6 @@ BOOST_AUTO_TEST_CASE(CheckObject)
     BOOST_CHECK(pScore != nullptr && pScore->isObject() && pScore->size() == 3);
 }
 
-
 BOOST_AUTO_TEST_CASE(CheckArray)
 {
     JSONX::IMPLEMENT::StringParser<char> parser("[]");
@@ -204,6 +203,237 @@ BOOST_AUTO_TEST_CASE(CheckArray)
 
     const JSONX::IMPLEMENT::ValueObject* pScore = dynamic_cast<const JSONX::IMPLEMENT::ValueObject*>(sp->get(6).get());
     BOOST_CHECK(pScore != nullptr && pScore->isObject() && pScore->size() == 3);
+}
+
+static const char* json1 = "{ \
+    \"user\": { \
+        \"id\": 18921,  \
+        \"premier\": true,  \
+        \"name\": \"John Tyler\",  \
+        \"email\": \"john.tyler@gmail.com\",  \
+        \"company\": \"\",  \
+        \"country\": {  \
+            \"name\": \"United States\",  \
+            \"code\": \"US\"  \
+        }, \
+        \"phone\": {  \
+            \"home\": \"650-756-8210\",  \
+            \"mobile\": \"408-312-9527\"  \
+        } \
+    }, \
+    \"ticket\": { \
+        \"token\": \"6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D\",  \
+        \"expireTime\": 1892183648,  \
+        \"issuer\": \"Xiang Ye\",  \
+        \"issuedTime\": 1892183110,  \
+        \"rights\": [  \
+            \"query\",  \
+            \"read\",  \
+            \"write\"  \
+        ] \
+    }, \
+    \"repositories\": [ \
+        { \
+            \"id\": 0,  \
+            \"name\": \"Default\",  \
+            \"provider\": \"Default\",  \
+            \"url\": \"https:\\/\\/drive.default.com\\/user\\/query?id=1723382\",  \
+            \"permission\": \"rwx\",  \
+        }, \
+        { \
+            \"id\": 1,  \
+            \"name\": \"Private Storage 1\",  \
+            \"provider\": \"Google Drive\",  \
+            \"url\": \"https:\\/\\/drive.google.com\\/user\\/query?id=1723382\",  \
+            \"permission\": \"rw\",  \
+        }, \
+        { \
+            \"id\": 2,  \
+            \"name\": \"Dropbox Storage 1\",  \
+            \"provider\": \"Dropbox\",  \
+            \"url\": \"https:\\/\\/drive.dropbox.com\\/user\\/query?id=1723382\",  \
+            \"permission\": \"r\",  \
+        } \
+    ] \
+}";
+
+static void checkJson1(const JSONX::Value& val)
+{
+    BOOST_CHECK(val.isObject());
+
+    const JSONX::Value& valUser = val["user"];
+    BOOST_CHECK(valUser.isObject());
+    const JSONX::Value& valUserId = valUser["id"];
+    BOOST_CHECK(valUserId.isNumber() && valUserId.isIntegerNumber());
+    BOOST_CHECK_EQUAL(valUserId.getInt32(), 18921);
+    const JSONX::Value& valUserPremier = valUser["premier"];
+    BOOST_CHECK(valUserPremier.isBoolean() && valUserPremier.getBoolean());
+    const JSONX::Value& valUserName = valUser["name"];
+    BOOST_CHECK(valUserName.isString());
+    BOOST_CHECK_EQUAL(valUserName.getString(), "John Tyler");
+    const JSONX::Value& valUserEmail = valUser["email"];
+    BOOST_CHECK(valUserEmail.isString());
+    BOOST_CHECK_EQUAL(valUserEmail.getString(), "john.tyler@gmail.com");
+    const JSONX::Value& valUserCompany = valUser["company"];
+    BOOST_CHECK(valUserCompany.isString());
+    BOOST_CHECK_EQUAL(valUserCompany.getString(), "");
+    const JSONX::Value& valUserCountry = valUser["country"];
+    BOOST_CHECK(valUserCountry.isObject());
+    const JSONX::Value& valUserCountryName = valUserCountry["name"];
+    BOOST_CHECK(valUserCountryName.isString());
+    BOOST_CHECK_EQUAL(valUserCountryName.getString(), "United States");
+    const JSONX::Value& valUserCountryCode = valUserCountry["code"];
+    BOOST_CHECK(valUserCountryCode.isString());
+    BOOST_CHECK_EQUAL(valUserCountryCode.getString(), "US");
+    const JSONX::Value& valUserPhone = valUser["phone"];
+    BOOST_CHECK(valUserPhone.isObject());
+    const JSONX::Value& valUserPhoneHome = valUserPhone["home"];
+    BOOST_CHECK(valUserPhoneHome.isString());
+    BOOST_CHECK_EQUAL(valUserPhoneHome.getString(), "650-756-8210");
+    const JSONX::Value& valUserPhoneMobile = valUserPhone["mobile"];
+    BOOST_CHECK(valUserPhoneMobile.isString());
+    BOOST_CHECK_EQUAL(valUserPhoneMobile.getString(), "408-312-9527");
+
+    const JSONX::Value& valTicket = val["ticket"];
+    BOOST_CHECK(valTicket.isObject());
+    const JSONX::Value& valTicketToken = valTicket["token"];
+    BOOST_CHECK(valTicketToken.isString());
+    BOOST_CHECK_EQUAL(valTicketToken.getString(), "6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D6282AF8D");
+    const JSONX::Value& valTicketExpireTime = valTicket["expireTime"];
+    BOOST_CHECK(valTicketExpireTime.isNumber());
+    BOOST_CHECK_EQUAL(valTicketExpireTime.getInt64(), 1892183648);
+    const JSONX::Value& valTicketIssuer = valTicket["issuer"];
+    BOOST_CHECK(valTicketIssuer.isString());
+    BOOST_CHECK_EQUAL(valTicketIssuer.getString(), "Xiang Ye");
+    const JSONX::Value& valTicketIssuedTime = valTicket["issuedTime"];
+    BOOST_CHECK(valTicketIssuedTime.isNumber());
+    BOOST_CHECK_EQUAL(valTicketIssuedTime.getInt64(), 1892183110);
+    const JSONX::Value& valTicketRights = valTicket["rights"];
+    BOOST_CHECK(valTicketRights.isArray());
+    BOOST_CHECK_EQUAL(valTicketRights.size(), 3);
+    const JSONX::Value& valTicketRights0 = valTicketRights[0];
+    BOOST_CHECK(valTicketRights0.isString());
+    BOOST_CHECK_EQUAL(valTicketRights0.getString(), "query");
+    const JSONX::Value& valTicketRights1 = valTicketRights[1];
+    BOOST_CHECK(valTicketRights1.isString());
+    BOOST_CHECK_EQUAL(valTicketRights1.getString(), "read");
+    const JSONX::Value& valTicketRights2 = valTicketRights[2];
+    BOOST_CHECK(valTicketRights2.isString());
+    BOOST_CHECK_EQUAL(valTicketRights2.getString(), "write");
+
+    const JSONX::Value& valRepos = val["repositories"];
+    BOOST_CHECK(valRepos.isArray());
+    BOOST_CHECK_EQUAL(valRepos.size(), 3);
+    const JSONX::Value& valRepo0 = valRepos[0];
+    BOOST_CHECK(valRepo0.isObject());
+    BOOST_CHECK_EQUAL(valRepo0.size(), 5);
+    const JSONX::Value& valRepo0Id = valRepo0["id"];
+    BOOST_CHECK(valRepo0Id.isNumber());
+    BOOST_CHECK_EQUAL(valRepo0Id.getInt64(), 0);
+    const JSONX::Value& valRepo0Name = valRepo0["name"];
+    BOOST_CHECK(valRepo0Name.isString());
+    BOOST_CHECK_EQUAL(valRepo0Name.getString(), "Default");
+    const JSONX::Value& valRepo0Provider = valRepo0["provider"];
+    BOOST_CHECK(valRepo0Provider.isString());
+    BOOST_CHECK_EQUAL(valRepo0Provider.getString(), "Default");
+    const JSONX::Value& valRepo0Url = valRepo0["url"];
+    BOOST_CHECK(valRepo0Url.isString());
+    BOOST_CHECK_EQUAL(valRepo0Url.getString(), "https://drive.default.com/user/query?id=1723382");
+    const JSONX::Value& valRepo0Permission = valRepo0["permission"];
+    BOOST_CHECK(valRepo0Permission.isString());
+    BOOST_CHECK_EQUAL(valRepo0Permission.getString(), "rwx");
+
+    const JSONX::Value& valRepo1 = valRepos[1];
+    BOOST_CHECK(valRepo1.isObject());
+    BOOST_CHECK_EQUAL(valRepo1.size(), 5);
+    const JSONX::Value& valRepo1Id = valRepo1["id"];
+    BOOST_CHECK(valRepo1Id.isNumber());
+    BOOST_CHECK_EQUAL(valRepo1Id.getInt64(), 1);
+    const JSONX::Value& valRepo1Name = valRepo1["name"];
+    BOOST_CHECK(valRepo1Name.isString());
+    BOOST_CHECK_EQUAL(valRepo1Name.getString(), "Private Storage 1");
+    const JSONX::Value& valRepo1Provider = valRepo1["provider"];
+    BOOST_CHECK(valRepo1Provider.isString());
+    BOOST_CHECK_EQUAL(valRepo1Provider.getString(), "Google Drive");
+    const JSONX::Value& valRepo1Url = valRepo1["url"];
+    BOOST_CHECK(valRepo1Url.isString());
+    BOOST_CHECK_EQUAL(valRepo1Url.getString(), "https://drive.google.com/user/query?id=1723382");
+    const JSONX::Value& valRepo1Permission = valRepo1["permission"];
+    BOOST_CHECK(valRepo1Permission.isString());
+    BOOST_CHECK_EQUAL(valRepo1Permission.getString(), "rw");
+
+    const JSONX::Value& valRepo2 = valRepos[2];
+    BOOST_CHECK(valRepo2.isObject());
+    BOOST_CHECK_EQUAL(valRepo2.size(), 5);
+    const JSONX::Value& valRepo2Id = valRepo2["id"];
+    BOOST_CHECK(valRepo2Id.isNumber());
+    BOOST_CHECK_EQUAL(valRepo2Id.getInt64(), 2);
+    const JSONX::Value& valRepo2Name = valRepo2["name"];
+    BOOST_CHECK(valRepo2Name.isString());
+    BOOST_CHECK_EQUAL(valRepo2Name.getString(), "Dropbox Storage 1");
+    const JSONX::Value& valRepo2Provider = valRepo2["provider"];
+    BOOST_CHECK(valRepo2Provider.isString());
+    BOOST_CHECK_EQUAL(valRepo2Provider.getString(), "Dropbox");
+    const JSONX::Value& valRepo2Url = valRepo2["url"];
+    BOOST_CHECK(valRepo2Url.isString());
+    BOOST_CHECK_EQUAL(valRepo2Url.getString(), "https://drive.dropbox.com/user/query?id=1723382");
+    const JSONX::Value& valRepo2Permission = valRepo2["permission"];
+    BOOST_CHECK(valRepo2Permission.isString());
+    BOOST_CHECK_EQUAL(valRepo2Permission.getString(), "r");
+}
+
+BOOST_AUTO_TEST_CASE(CheckValueParserA)
+{
+    const JSONX::Value& val = JSONX::Value::parse(json1);
+    checkJson1(val);
+}
+
+BOOST_AUTO_TEST_CASE(CheckValueParserW)
+{
+    const std::string sJson1(json1);
+    const std::wstring wsJson1(sJson1.begin(), sJson1.end());
+    const JSONX::Value& val = JSONX::Value::parse(wsJson1);
+    checkJson1(val);
+}
+
+BOOST_AUTO_TEST_CASE(CheckValueParserCompactedFile)
+{
+    const JSONX::Value& val = JSONX::Value::parse(json1);
+    const std::string& s = val.serialize();
+    BOOST_CHECK(!s.empty());
+
+    std::ofstream ofs;
+    ofs.open(L"test.json", std::ofstream::out | std::ofstream::trunc);
+    BOOST_CHECK(ofs.is_open());
+    ofs << s;
+    ofs.close();
+
+    const JSONX::Value& val2 = JSONX::Value::parseFile(L"test.json");
+    checkJson1(val2);
+#ifndef _DEBUG
+    DeleteFileW(L"test.json");
+#endif
+}
+
+BOOST_AUTO_TEST_CASE(CheckValueParserFormattedFile)
+{
+    const JSONX::Value& val = JSONX::Value::parse(json1);
+    JSONX::SerializeConfig sc(true);
+    const std::string& s = val.serialize(&sc);
+    BOOST_CHECK(!s.empty());
+
+    std::ofstream ofs;
+    ofs.open(L"test-formatted.json", std::ofstream::out | std::ofstream::trunc);
+    BOOST_CHECK(ofs.is_open());
+    ofs << s;
+    ofs.close();
+
+    const JSONX::Value& val2 = JSONX::Value::parseFile(L"test-formatted.json");
+    checkJson1(val2);
+
+#ifndef _DEBUG
+    DeleteFileW(L"test-formatted.json");
+#endif
 }
 
 BOOST_AUTO_TEST_SUITE_END()
