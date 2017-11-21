@@ -216,9 +216,7 @@ typedef enum JsonError {
     JEMismatchValueType,
     JEUnexpectedChar,
     JEUnexpectedEnd,
-    JEMissingColon,
-    JEMissingObjectClosure,
-    JEMissingArrayClosure,
+    JEMissingColon
 } JsonError;
 
 namespace IMPLEMENT {
@@ -647,6 +645,7 @@ public:
     inline size_t getPos() const { return pos; }
     inline JsonError getError() const { return error; }
     inline bool failed() const { return (0 != error); }
+    virtual void reset() { stm.seekg(0); }
 
     ValueType checkValueType()
     {
@@ -685,6 +684,32 @@ public:
         return JsonUnknown;
     }
 
+    IMPLEMENT::ValueBase* readValue()
+    {
+        const ValueType type = checkValueType();
+
+        switch (type)
+        {
+        case JsonNull:
+            return readValueNull();
+        case JsonBoolean:
+            return readValueBoolean();
+        case JsonNumber:
+            return readValueNumber();
+        case JsonString:
+            return readValueString();
+        case JsonObject:
+            return readValueObject();
+        case JsonArray:
+            return readValueArray();
+        default:
+            break;
+        }
+
+        error = JEUnexpectedChar;
+        return nullptr;
+    }
+
 #ifndef _DEBUG
 protected:
 #endif
@@ -713,32 +738,6 @@ protected:
             ch = peekNext();
         }
         return ch;
-    }
-
-    IMPLEMENT::ValueBase* readValue()
-    {
-        const ValueType type = checkValueType();
-
-        switch (type)
-        {
-        case JsonNull:
-            return readValueNull();
-        case JsonBoolean:
-            return readValueBoolean();
-        case JsonNumber:
-            return readValueNumber();
-        case JsonString:
-            return readValueString();
-        case JsonObject:
-            return readValueObject();
-        case JsonArray:
-            return readValueArray();
-        default:
-            break;
-        }
-
-        error = JEUnexpectedChar;
-        return nullptr;
     }
 
     IMPLEMENT::ValueNull* readValueNull()
@@ -1099,10 +1098,16 @@ protected:
 
             // Done
             if (c == ']')
+            {
+                readNext();
                 break;
+            }
 
             if (c == ',')
+            {
+                readNext();
                 continue;
+            }
 
             // Read Value
             IMPLEMENT::ValueBase* value = readValue();
@@ -1141,10 +1146,10 @@ public:
     {
     }
 
-    void reset(const std::basic_string<T>& s)
+    virtual void reset(const std::basic_string<T>& s)
     {
         iss.str(Utils::toUtf8(s));
-        iss.seekg(0);
+        Parser::reset();
     }
 
 private:
