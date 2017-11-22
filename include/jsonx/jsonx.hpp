@@ -1359,7 +1359,7 @@ public:
     inline void set(float_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
     inline void set(double_t v) { if (isNumber()) dynamic_cast<IMPLEMENT::ValueNumber*>(vp.get())->set(v); }
 
-    inline const std::string& getString() const
+    inline std::string getString() const
     {
         return isString() ? dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->get() : std::string();
     }
