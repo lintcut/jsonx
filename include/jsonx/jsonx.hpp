@@ -19,6 +19,14 @@
 #define NOTHING
 #endif
 
+#ifndef FORCEDINLINE
+#   ifdef _MSC_VER
+#       define FORCEDINLINE __forceinline
+#   else
+#       define FORCEDINLINE __attribute__((always_inline))
+#   endif
+#endif
+
 //
 //  References:
 //      RFC 7159 [The JavaScript Object Notation (JSON) Data Interchange Format]:  https://tools.ietf.org/html/rfc7159
@@ -28,33 +36,30 @@ namespace JSONX {
 
 namespace Utils {
 
-    __forceinline std::string toUtf8(const std::string& s)
+    FORCEDINLINE std::string toUtf8(const std::string& s)
     {
         return s;
     }
 
-    __forceinline std::string toUtf8(const std::wstring& s)
+    FORCEDINLINE std::string toUtf8(const std::wstring& s)
     {
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> convert;
         return convert.to_bytes(s);    
     }
 
-    __forceinline std::wstring toUtf16(const std::string& s)
+    FORCEDINLINE std::wstring toUtf16(const std::string& s)
     {
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> convert;
         return convert.from_bytes(s); 
     }
-
-    template<typename T> T toLower(T c) { return (c >= 'A' && c <= 'Z') ? (c + 0x20) : c; }
-    template<typename T> T toUpper(T c) { return (c >= 'a' && c <= 'z') ? (c - 0x20) : c; }
 
     template<typename T>
     int compare(T c1, T c2, bool caseInsensitive)
     {
         if (caseInsensitive)
         {
-            c1 = toLower<T>(c1);
-            c2 = toLower<T>(c2);
+            c1 = std::tolower(c1);
+            c2 = std::tolower(c2);
         }
         return (c1 == c2) ? 0 : (c1 < c2 ? -1 : 1);
     }
@@ -76,7 +81,7 @@ namespace Utils {
 
     // JSON escape/unescape rules:
     //  https://tools.ietf.org/html/rfc7159#page-8
-    __forceinline std::string escape(const std::string& s)
+    FORCEDINLINE std::string escape(const std::string& s)
     {
         std::string s2;
         const char* pos = s.c_str();
@@ -117,7 +122,7 @@ namespace Utils {
         return std::move(s2);
     }
 
-    __forceinline std::string unescape(const std::string& s)
+    FORCEDINLINE std::string unescape(const std::string& s)
     {
         std::string s2;
         const char* pos = s.c_str();
@@ -1197,8 +1202,6 @@ private:
     std::istringstream iss;
 };
 
-}   // namespace IMPLEMENT
-
 class ValueFactory
 {
 public:
@@ -1255,6 +1258,8 @@ public:
     }
 };
 
+}   // namespace IMPLEMENT
+
 class Value
 {
 public:
@@ -1271,7 +1276,7 @@ public:
     explicit Value(const std::wstring& v, bool escaped=false) : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueString::create(v, escaped))) {}
     explicit Value(std::shared_ptr<IMPLEMENT::ValueBase> p) : vp(p) {}
     explicit Value(ValueType vt)
-        : vp(std::shared_ptr<IMPLEMENT::ValueBase>(ValueFactory::create(vt)))
+        : vp(std::shared_ptr<IMPLEMENT::ValueBase>(IMPLEMENT::ValueFactory::create(vt)))
     {
     }
     virtual ~Value() {}
@@ -1299,7 +1304,7 @@ public:
         return Value(std::shared_ptr<IMPLEMENT::ValueBase>(parser.readValue()));
     }
 
-    static Value parseFile(const std::wstring& file)
+    static Value parseFile(const std::string& file)
     {
         std::ifstream ifs;
         ifs.open(file, std::ifstream::in);
@@ -1356,12 +1361,14 @@ public:
 
     inline const std::string& getString() const
     {
-        return dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->get();
+        return isString() ? dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->get() : std::string();
     }
     inline std::wstring getWstring() const
     {
-        return dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->getw();
+        return isString() ? dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->getw() : std::wstring();
     }
+    inline void set(const std::string& v) { if (isString()) dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->set(v, false); }
+    inline void set(const std::wstring& v) { if (isString()) dynamic_cast<IMPLEMENT::ValueString*>(vp.get())->set(v, false); }
 
     Value operator [](const std::string& key)
     {
@@ -1387,12 +1394,6 @@ public:
 #endif
     }
 
-    Value set(const std::string& key, std::shared_ptr<IMPLEMENT::ValueBase> sp)
-    {
-        return isObject()
-            ? Value(dynamic_cast<IMPLEMENT::ValueObject*>(vp.get())->set(key, sp))
-            : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
-    }
     Value set(const std::string& key, Value& v)
     {
         return isObject()
@@ -1472,10 +1473,10 @@ public:
 #endif
     }
 
-    Value push_back(std::shared_ptr<IMPLEMENT::ValueBase> sp)
+    Value push_back(Value& v)
     {
         return isArray()
-            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(sp))
+            ? Value(dynamic_cast<IMPLEMENT::ValueArray*>(vp.get())->push_back(v.getPtr()))
             : Value(std::shared_ptr<IMPLEMENT::ValueBase>());
     }
     Value push_back(bool v)

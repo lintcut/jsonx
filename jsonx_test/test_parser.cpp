@@ -408,7 +408,7 @@ BOOST_AUTO_TEST_CASE(CheckValueParserCompactedFile)
     ofs << s;
     ofs.close();
 
-    const JSONX::Value& val2 = JSONX::Value::parseFile(L"test.json");
+    const JSONX::Value& val2 = JSONX::Value::parseFile("test.json");
     checkJson1(val2);
 #ifndef _DEBUG
     DeleteFileW(L"test.json");
@@ -428,7 +428,7 @@ BOOST_AUTO_TEST_CASE(CheckValueParserFormattedFile)
     ofs << s;
     ofs.close();
 
-    const JSONX::Value& val2 = JSONX::Value::parseFile(L"test-formatted.json");
+    const JSONX::Value& val2 = JSONX::Value::parseFile("test-formatted.json");
     checkJson1(val2);
 
 #ifndef _DEBUG
