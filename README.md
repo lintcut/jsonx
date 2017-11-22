@@ -1,10 +1,12 @@
 # JSONX #
 
-A simple, very easy to use C++ class, which allow you to parse json string or file and manipulate json values.
+A simple, very easy to use C++ JSON parser in **ONE** header file, which allows you to parse json string or file and manipulate json values.
 
 ## Table of Content
 
 - [1. Overview](#1-overview)
+    - [1.1 IDE and Compiler](#11-ide-and-compiler)
+    - [1.2 History](#12-history)
 - [2. Include](#2-include)
 - [3. Namespace](#3-namespace)
 - [4. Classes](#4-classes)
@@ -24,6 +26,25 @@ A simple, very easy to use C++ class, which allow you to parse json string or fi
     - [5.3 Create](#53-create)
 
 ## 1. Overview
+
+### 1.1 IDE and Compiler
+
+- Visual Studio
+- XCode
+- gcc
+- clang
+
+### 1.2 History
+
+**Release 0.1.2**
+
+- Minor fixes
+- Improve README
+- Add license
+
+**Release 0.1.1**
+
+- Initial release
 
 ## 2. Include
 
